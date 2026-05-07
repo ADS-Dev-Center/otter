@@ -44,12 +44,7 @@ Glass values use `rgba` — never solid hex fills on panels, sidebar, or topbar.
 
 Usage pattern for any glass panel or card:
 
-```css
-background: var(--glass-bg);
-backdrop-filter: var(--glass-blur);
--webkit-backdrop-filter: var(--glass-blur);
-border: 1px solid var(--glass-border);
-```
+use tailwindcss className and `cn()` function if it's needed
 
 ### Text
 
