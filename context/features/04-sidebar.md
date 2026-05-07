@@ -23,6 +23,8 @@ Requirements:
 - opening it should not push page content
 - slides in from the left
 - accepts isOpen and onClose props
+- sidebar navigation should stay at the division/project level
+- do not surface a standalone Credentials item in the main sidebar
 - replace current sidebar component with this
 
 ### check when done

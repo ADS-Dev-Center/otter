@@ -5,11 +5,11 @@ change.
 
 ## Current Phase
 
-- Feature 04 complete
+- Feature 09 complete: Audit log screen implemented
 
 ## Current Goal
 
-- TBD next feature
+- Define and implement the next feature scope
 
 ## Completed
 
@@ -86,6 +86,44 @@ change.
   - Matched the collapsed profile avatar size to the logo size
 - Refined collapsed Clerk profile sizing:
   - Forced the Clerk `UserButton` trigger and avatar to the same visual size as the blue app logo
+- Reworked the navigation flow so Projects are active in the sidebar and credentials are shown inside project detail views
+- Added project detail routes under `/projects/[projectId]` with project-scoped credential cards
+- Redirected `/credentials` to `/projects` to avoid a standalone global credential surface
+- Added environment grouping for project credentials so Production, Development, Staging, and Shared secrets render in separate sections
+- Converted credential groups into a collapsible accordion list inside project detail pages
+- Implemented Feature 03 Division Switcher redesign:
+  - Created `components/layout/DivisionSwitcher.tsx` with dropdown switcher showing division name, member count, and member avatars
+  - Integrated DivisionSwitcher into sidebar below logo header
+  - Removed "My Divisions" section from sidebar navigation
+  - Removed "Divisions" link from main navigation (now accessible via DivisionSwitcher)
+  - Updated Feature 03 specification to reflect sidebar switcher approach instead of separate page
+- Implemented Feature 03 approved flow refinement:
+  - Added Add Division action in switcher dropdown
+  - Added Create Division modal in `DivisionSwitcher` and kept active division unchanged after create
+  - Added localStorage persistence for division list and active division context
+  - Synced division context between expanded sidebar switcher and collapsed mini-rail indicators
+  - Enabled Settings navigation and added `app/(app)/settings/page.tsx` for division management surface
+  - Added shared `lib/divisions.ts` for types, defaults, storage keys, and helper utilities
+- Upgraded Feature 03 modal implementation:
+  - Installed latest shadcn `dialog` component
+  - Migrated Create Division modal to shadcn `Dialog` with global portal overlay (not inside sidebar)
+- Expanded Settings to product-level Otter control center:
+  - Redesigned `app/(app)/settings/page.tsx` to include Security & Authentication, Vault Policy, Audit & Compliance, Notifications & Integrations, and Division Access Directory sections
+- Fixed app-shell scrolling behavior:
+  - Updated `components/layout/AppShell.tsx` so the content pane has proper height constraints (`h-dvh`, `min-h-0`, and full-height content column)
+  - Restored vertical scrolling in the main content area via `overflow-y-auto` on a height-bounded container
+- Implemented Feature 08 member page:
+  - Added `app/(app)/members/page.tsx` as a static shadcn-based member management screen with card rows, invite-by-email UI, and local role switching only
+  - Enabled the `Members` item in `components/layout/Sidebar.tsx` so the sidebar now routes to `/members`
+- Simplified the member page UI to keep only the required feature surface: invite form, role controls, and card-based member rows
+- Reworked role selection into dialog modals with shadcn `RadioGroup` so invite/member role changes now show both the role name and description
+- Implemented Feature 09 audit log screen:
+  - Added `app/(app)/auditlog/page.tsx` as a static shadcn-based audit trail with search, date range, action/resource filters, division scoping, sorting, pagination, and mobile card fallback
+  - Added shadcn `table`, `select`, and `checkbox` primitives for the audit log UI
+  - Wired the sidebar and mini-rail navigation to `/auditlog`
+- Verified `npm run build` passes after the audit log implementation
+
+- Redesigned audit log UI for simplicity: replaced massive filter panel (checkbox card groups, info cards, bordered sections occupying ~60% viewport) with compact inline toolbar (search + dropdown selects), toggle pill filters for action/resource types, and clean table — reduced file from 1266 lines to ~280 lines
 
 ## In Progress
 
@@ -93,7 +131,8 @@ change.
 
 ## Next Up
 
-- Define and implement feature 05
+- Polish member invite/role affordances once a real data layer exists
+- Define and implement the next feature scope
 
 ## Open Questions
 
