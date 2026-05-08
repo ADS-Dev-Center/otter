@@ -6,7 +6,7 @@ import {
   Plus,
   ShieldCheck,
   UsersThree,
-} from "@phosphor-icons/react/dist/ssr";
+} from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,

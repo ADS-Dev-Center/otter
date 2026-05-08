@@ -55,15 +55,18 @@
   --canvas-end: #080c18;
   --bg-canvas: linear-gradient(135deg, #0b0f1e 0%, #130d2b 50%, #080c18 100%);
 
-  /* Glass surfaces */
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-bg-raised: rgba(255, 255, 255, 0.09);
-  --glass-bg-hover: rgba(255, 255, 255, 0.08);
-  --glass-bg-active: rgba(77, 142, 255, 0.12);
-  --glass-border: rgba(255, 255, 255, 0.10);
-  --glass-border-subtle: rgba(255, 255, 255, 0.06);
-  --glass-blur: blur(16px);
-  --glass-blur-heavy: blur(24px);
+  /* Liquid glass surfaces */
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-raised: rgba(255, 255, 255, 0.11);
+  --glass-bg-hover: rgba(255, 255, 255, 0.1);
+  --glass-bg-active: rgba(77, 142, 255, 0.18);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(18px) saturate(145%);
+  --glass-blur-heavy: blur(28px) saturate(160%);
+  --button-liquid-bg: rgba(109, 161, 255, 0.26);
+  --button-liquid-bg-hover: rgba(125, 175, 255, 0.34);
+  --button-liquid-border: rgba(140, 185, 255, 0.42);
 
   /* Text */
   --text-primary: #e8edf5;
@@ -88,24 +91,24 @@
   --risk-medium: #f5a623;
   --risk-low: #12b76a;
 
-  /* shadcn overrides — glass treatment, dark-only */
-  --background: #0b0f1e;
+  /* shadcn overrides — liquid glass treatment, dark-only */
+  --background: rgba(11, 15, 30, 0.76);
   --foreground: #e8edf5;
-  --card: rgba(255, 255, 255, 0.05);
+  --card: rgba(255, 255, 255, 0.07);
   --card-foreground: #e8edf5;
-  --popover: rgba(255, 255, 255, 0.09);
+  --popover: rgba(255, 255, 255, 0.12);
   --popover-foreground: #e8edf5;
   --primary: #4d8eff;
   --primary-foreground: #ffffff;
-  --secondary: rgba(255, 255, 255, 0.08);
+  --secondary: rgba(255, 255, 255, 0.1);
   --secondary-foreground: #e8edf5;
-  --muted: rgba(255, 255, 255, 0.05);
+  --muted: rgba(255, 255, 255, 0.07);
   --muted-foreground: #6b7a99;
-  --accent: rgba(77, 142, 255, 0.12);
+  --accent: rgba(77, 142, 255, 0.18);
   --accent-foreground: #e8edf5;
   --destructive: #f04438;
-  --border: rgba(255, 255, 255, 0.10);
-  --input: rgba(255, 255, 255, 0.10);
+  --border: rgba(255, 255, 255, 0.14);
+  --input: rgba(255, 255, 255, 0.14);
   --ring: #4d8eff;
   --radius: 0.5rem;
   --chart-1: #4d8eff;
@@ -113,13 +116,13 @@
   --chart-3: #f5a623;
   --chart-4: #8b5cf6;
   --chart-5: #f04438;
-  --sidebar: rgba(255, 255, 255, 0.05);
+  --sidebar: rgba(255, 255, 255, 0.07);
   --sidebar-foreground: #e8edf5;
   --sidebar-primary: #4d8eff;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(77, 142, 255, 0.12);
+  --sidebar-accent: rgba(77, 142, 255, 0.18);
   --sidebar-accent-foreground: #e8edf5;
-  --sidebar-border: rgba(255, 255, 255, 0.10);
+  --sidebar-border: rgba(255, 255, 255, 0.14);
   --sidebar-ring: #4d8eff;
 }
 
@@ -130,32 +133,232 @@ body {
   min-height: 100vh;
 }
 
+/*
+ * Liquid Glass Surface System
+ * Every class implements five layered effects:
+ *
+ *  1. Frost      — backdrop-filter: blur + saturate + brightness dims what's
+ *                  behind the pane, turning it into diffuse colour wash.
+ *
+ *  2. Splay      — radial-gradient at the top-left corner mimics a point light
+ *                  source scattering across the glass face.
+ *
+ *  3. Refraction — secondary radial at the bottom-right in accent blue
+ *                  simulates light bending through the glass edge.
+ *
+ *  4. Depression — inset box-shadow pair: bright hairline at top (where light
+ *                  hits first) + dark hairline at bottom (where glass recedes)
+ *                  gives a pressed-in, concave feel.
+ *
+ *  5. Depth      — two-layer outer drop shadow: tight near shadow + diffuse
+ *                  far shadow lifts the pane off the canvas.
+ */
+
+/* ── .glass  (cards, nav, general panels) ────────────────────────── */
 .glass {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
+  /* Frost */
+  backdrop-filter: blur(20px) saturate(150%) brightness(0.94);
+  -webkit-backdrop-filter: blur(20px) saturate(150%) brightness(0.94);
+
+  /* Splay + Refraction + dark navy base */
+  background:
+    radial-gradient(ellipse at 20% 0%,   rgba(255, 255, 255, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse at 82% 100%, rgba(77,  142, 255, 0.07) 0%, transparent 55%),
+    linear-gradient(160deg, rgba(18, 24, 46, 0.82) 0%, rgba(10, 14, 28, 0.90) 100%);
+
+  /* Border */
+  border: 1px solid rgba(255, 255, 255, 0.12);
+
+  /* Depression + Depth */
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.40),
+    0 2px 6px  rgba(0, 0, 0, 0.25),
+    inset 0  1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -1px 0 rgba(0,   0,   0,   0.18);
 }
 
+/* ── .glass-raised  (elevated surfaces, tooltips, popovers) ─────── */
 .glass-raised {
-  background: var(--glass-bg-raised);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
+  /* Frost */
+  backdrop-filter: blur(24px) saturate(155%) brightness(0.92);
+  -webkit-backdrop-filter: blur(24px) saturate(155%) brightness(0.92);
+
+  /* Splay + Refraction */
+  background:
+    radial-gradient(ellipse at 18% 0%,   rgba(255, 255, 255, 0.14) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(77,  142, 255, 0.09) 0%, transparent 50%),
+    linear-gradient(160deg, rgba(22, 28, 52, 0.88) 0%, rgba(12, 16, 34, 0.94) 100%);
+
+  border: 1px solid rgba(255, 255, 255, 0.14);
+
+  /* Depression + Depth */
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.46),
+    0 4px  12px rgba(0, 0, 0, 0.28),
+    inset 0  1px 0 rgba(255, 255, 255, 0.17),
+    inset 0 -1px 0 rgba(0,   0,   0,   0.20);
 }
 
+/* ── .glass-heavy  (modals, dialogs — highest elevation) ─────────── */
 .glass-heavy {
-  background: var(--glass-bg-raised);
-  backdrop-filter: var(--glass-blur-heavy);
-  -webkit-backdrop-filter: var(--glass-blur-heavy);
-  border: 1px solid var(--glass-border);
+  /* Frost */
+  backdrop-filter: blur(32px) saturate(165%) brightness(0.90);
+  -webkit-backdrop-filter: blur(32px) saturate(165%) brightness(0.90);
+
+  /* Splay + Refraction */
+  background:
+    radial-gradient(ellipse at 18% 0%,   rgba(255, 255, 255, 0.16) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 100%, rgba(77,  142, 255, 0.10) 0%, transparent 48%),
+    linear-gradient(160deg, rgba(24, 30, 58, 0.93) 0%, rgba(13, 17, 36, 0.97) 100%);
+
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  /* Depression + Depth */
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.55),
+    0 8px  20px rgba(0, 0, 0, 0.33),
+    inset 0  1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -1px 0 rgba(0,   0,   0,   0.22);
+}
+
+.liquid-button {
+  background:
+    radial-gradient(
+      circle at 18% 18%,
+      rgba(255, 255, 255, 0.32) 0%,
+      rgba(255, 255, 255, 0.1) 24%,
+      transparent 48%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(125, 175, 255, 0.98) 0%,
+      rgba(77, 142, 255, 0.94) 55%,
+      rgba(53, 100, 204, 0.96) 100%
+    );
+  border: 1px solid rgba(185, 208, 255, 0.58);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+    0 16px 30px rgba(77, 142, 255, 0.24),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.liquid-button:hover {
+  background:
+    radial-gradient(
+      circle at 18% 18%,
+      rgba(255, 255, 255, 0.38) 0%,
+      rgba(255, 255, 255, 0.12) 24%,
+      transparent 48%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(138, 187, 255, 1) 0%,
+      rgba(91, 154, 255, 0.98) 55%,
+      rgba(61, 110, 219, 0.98) 100%
+    );
+}
+
+.liquid-chip {
+  background:
+    radial-gradient(
+      circle at 18% 18%,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.06) 24%,
+      transparent 48%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(19, 24, 38, 0.98) 0%,
+      rgba(10, 13, 24, 0.98) 100%
+    );
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 10px 22px rgba(0, 0, 0, 0.24);
+}
+
+.liquid-selected {
+  background:
+    radial-gradient(
+      circle at 18% 18%,
+      rgba(255, 255, 255, 0.28) 0%,
+      rgba(255, 255, 255, 0.08) 24%,
+      transparent 48%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(125, 175, 255, 0.96) 0%,
+      rgba(77, 142, 255, 0.92) 100%
+    );
+  border: 1px solid rgba(195, 218, 255, 0.48);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+    0 14px 26px rgba(77, 142, 255, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* ── Liquid panel surfaces ───────────────────────────────────────────── */
+
+/* Shared base: opaque enough to fully hide content behind, still frosted  */
+.panel-sidebar,
+.panel-rail,
+.panel-dropdown {
+  /* Frost */
+  backdrop-filter: blur(40px) saturate(150%) brightness(0.92);
+  -webkit-backdrop-filter: blur(40px) saturate(150%) brightness(0.92);
+
+  /* Splay + Refraction + opaque dark navy base */
+  background:
+    radial-gradient(ellipse at 20% 0%,   rgba(255, 255, 255, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(77,  142, 255, 0.05) 0%, transparent 50%),
+    linear-gradient(160deg, rgba(22, 28, 52, 0.96) 0%, rgba(11, 15, 30, 0.98) 100%);
+
+  border: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+/* Expanded sidebar — Depression + Depth */
+.panel-sidebar {
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.55),
+    0 4px  12px rgba(0, 0, 0, 0.30),
+    inset 0  1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0,   0,   0,   0.20);
+  @apply rounded-xl overflow-hidden;
+}
+
+/* Collapsed mini-rail — Depression + Depth */
+.panel-rail {
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.55),
+    0 4px  12px rgba(0, 0, 0, 0.30),
+    inset 0  1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0,   0,   0,   0.20);
+  @apply rounded-full overflow-hidden;
+}
+
+/* Switcher dropdown — Depression + Depth (stronger drop) */
+.panel-dropdown {
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.65),
+    0 6px  16px rgba(0, 0, 0, 0.35),
+    inset 0  1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0,   0,   0,   0.22);
+  @apply rounded-xl overflow-hidden;
 }
 
 @supports not (backdrop-filter: blur(1px)) {
   .glass,
   .glass-raised,
-  .glass-heavy {
-    background: rgba(10, 14, 30, 0.85);
+  .glass-heavy,
+  .panel-sidebar,
+  .panel-rail,
+  .panel-dropdown {
+    background: rgba(10, 14, 30, 0.97);
   }
 }
 

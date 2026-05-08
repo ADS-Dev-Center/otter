@@ -10,6 +10,7 @@ export interface Division {
   iconBgClass: string;
   iconColor: string;
   accentBarClass: string;
+  accentColor: "primary" | "teal" | "amber" | "purple";
   memberCount: number;
   members: MockMember[];
 }
@@ -25,6 +26,7 @@ export const DEFAULT_DIVISIONS: Division[] = [
     iconBgClass: "bg-[rgba(77,142,255,0.12)]",
     iconColor: "var(--accent-primary)",
     accentBarClass: "bg-(--accent-primary)",
+    accentColor: "primary",
     memberCount: 6,
     members: [
       {
@@ -55,6 +57,7 @@ export const DEFAULT_DIVISIONS: Division[] = [
     iconBgClass: "bg-[rgba(45,212,191,0.12)]",
     iconColor: "var(--accent-teal)",
     accentBarClass: "bg-(--accent-teal)",
+    accentColor: "teal",
     memberCount: 8,
     members: [
       {
@@ -80,6 +83,7 @@ export const DEFAULT_DIVISIONS: Division[] = [
     iconBgClass: "bg-[rgba(245,166,35,0.12)]",
     iconColor: "var(--accent-amber)",
     accentBarClass: "bg-(--accent-amber)",
+    accentColor: "amber",
     memberCount: 4,
     members: [
       {
@@ -127,11 +131,19 @@ export function createDivisionId(name: string) {
 }
 
 export function getDivisionPalette(index: number) {
-  const palettes = [
+  const palettes: Array<{
+    iconBgClass: string;
+    iconColor: string;
+    accentBarClass: string;
+    accentColor: Division["accentColor"];
+    gradientFrom: string;
+    gradientTo: string;
+  }> = [
     {
       iconBgClass: "bg-[rgba(77,142,255,0.12)]",
       iconColor: "var(--accent-primary)",
       accentBarClass: "bg-(--accent-primary)",
+      accentColor: "primary",
       gradientFrom: "from-(--accent-primary)",
       gradientTo: "to-(--accent-teal)",
     },
@@ -139,6 +151,7 @@ export function getDivisionPalette(index: number) {
       iconBgClass: "bg-[rgba(45,212,191,0.12)]",
       iconColor: "var(--accent-teal)",
       accentBarClass: "bg-(--accent-teal)",
+      accentColor: "teal",
       gradientFrom: "from-(--accent-teal)",
       gradientTo: "to-(--accent-purple)",
     },
@@ -146,10 +159,11 @@ export function getDivisionPalette(index: number) {
       iconBgClass: "bg-[rgba(245,166,35,0.12)]",
       iconColor: "var(--accent-amber)",
       accentBarClass: "bg-(--accent-amber)",
+      accentColor: "amber",
       gradientFrom: "from-(--accent-amber)",
       gradientTo: "to-(--accent-primary)",
     },
   ];
 
-  return palettes[index % palettes.length];
+  return palettes[index % palettes.length]!;
 }

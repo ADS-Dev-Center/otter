@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../app/generated/prisma"
@@ -10,4 +8,31 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+model Division {
+  id          String               @id @default(cuid())
+  name        String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  memberships DivisionMembership[]
+}
+
+model DivisionMembership {
+  id         String   @id @default(cuid())
+  clerkId    String
+  divisionId String
+  role       Role     @default(MEMBER)
+  createdAt  DateTime @default(now())
+  division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+
+  @@unique([clerkId, divisionId])
+  @@index([clerkId])
+}
+
+enum Role {
+  SUPER_ADMIN
+  DIVISION_OWNER
+  DIVISION_ADMIN
+  MEMBER
 }

@@ -179,7 +179,6 @@ export default function AuditLogPage() {
     return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => setPage(1), [search, dateRange, division, actionFilter, resourceFilter]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -275,14 +274,14 @@ export default function AuditLogPage() {
           />
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search by actor, resource, or action…"
             className="h-9 w-full rounded-lg border border-(--glass-border-subtle) bg-[rgba(255,255,255,0.03)] pl-9 pr-3 text-sm text-(--text-primary) outline-none transition-colors placeholder:text-(--text-muted) focus:border-(--accent-primary) focus:ring-1 focus:ring-[rgba(77,142,255,0.2)]"
           />
         </div>
 
         <div className="flex gap-2">
-          <Select value={dateRange} onValueChange={setDateRange}>
+          <Select value={dateRange} onValueChange={(v) => { setDateRange(v); setPage(1); }}>
             <SelectTrigger className="h-9 w-[130px] rounded-lg border-(--glass-border-subtle) bg-[rgba(255,255,255,0.03)] text-sm text-(--text-primary)">
               <SelectValue />
             </SelectTrigger>
@@ -296,7 +295,7 @@ export default function AuditLogPage() {
             </SelectContent>
           </Select>
 
-          <Select value={division} onValueChange={setDivision}>
+          <Select value={division} onValueChange={(v) => { setDivision(v); setPage(1); }}>
             <SelectTrigger className="h-9 w-[140px] rounded-lg border-(--glass-border-subtle) bg-[rgba(255,255,255,0.03)] text-sm text-(--text-primary)">
               <SelectValue />
             </SelectTrigger>
@@ -318,7 +317,7 @@ export default function AuditLogPage() {
           <button
             key={a}
             type="button"
-            onClick={() => setActionFilter(a)}
+            onClick={() => { setActionFilter(a); setPage(1); }}
             className={cn(
               "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
               actionFilter === a
@@ -339,7 +338,7 @@ export default function AuditLogPage() {
           <button
             key={r}
             type="button"
-            onClick={() => setResourceFilter(r)}
+            onClick={() => { setResourceFilter(r); setPage(1); }}
             className={cn(
               "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
               resourceFilter === r
@@ -393,7 +392,7 @@ export default function AuditLogPage() {
           <div className="hidden overflow-hidden rounded-xl border border-(--glass-border) bg-(--glass-bg) backdrop-blur-md md:block">
             <Table>
               <TableHeader>
-                <TableRow className="border-b border-(--glass-border) bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.06)]!">
+                <TableRow className="border-b border-(--glass-border) bg-[rgba(255,255,255,0.06)] !hover:bg-[rgba(255,255,255,0.06)]">
                   <TableHead className="w-[50px] text-center text-[11px] font-semibold uppercase tracking-widest text-(--text-subtle)">#</TableHead>
                   <TableHead className="w-[100px] text-[11px] font-semibold uppercase tracking-widest text-(--text-subtle)">Time</TableHead>
                   <TableHead className="w-[100px] text-[11px] font-semibold uppercase tracking-widest text-(--text-subtle)">Action</TableHead>
@@ -410,7 +409,7 @@ export default function AuditLogPage() {
                     <TableRow
                       key={entry.id}
                       className={cn(
-                        "border-b border-(--glass-border-subtle) transition-colors hover:bg-(--glass-bg-hover)!",
+                        "border-b border-(--glass-border-subtle) transition-colors !hover:bg-(--glass-bg-hover)",
                         idx % 2 === 1 && "bg-[rgba(255,255,255,0.02)]",
                       )}
                     >

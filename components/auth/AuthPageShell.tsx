@@ -19,11 +19,8 @@ export default function AuthPageShell({
     <div className="min-h-svh" style={{ color: "var(--text-primary)" }}>
       <div className="grid min-h-svh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)]">
         <aside
-          className="hidden lg:flex lg:flex-col lg:justify-between px-10 py-12"
+          className="glass-heavy hidden px-10 py-12 lg:flex lg:flex-col lg:justify-between"
           style={{
-            background: "var(--glass-bg)",
-            backdropFilter: "var(--glass-blur)",
-            WebkitBackdropFilter: "var(--glass-blur)",
             borderRight: "1px solid var(--glass-border)",
           }}
         >
@@ -32,7 +29,7 @@ export default function AuthPageShell({
               <div
                 className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold"
                 style={{
-                  background: "var(--glass-bg-raised)",
+                  background: "var(--glass-bg-active)",
                   border: "1px solid var(--glass-border)",
                   color: "var(--text-primary)",
                 }}

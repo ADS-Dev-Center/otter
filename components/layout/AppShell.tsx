@@ -5,10 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ACTIVE_DIVISION_STORAGE_KEY,
-  DEFAULT_DIVISIONS,
   DIVISION_CONTEXT_EVENT,
-  DIVISIONS_STORAGE_KEY,
-  safeParseDivisions,
   type Division,
 } from "@/lib/divisions";
 import {
@@ -32,11 +29,8 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [miniRailDivisions, setMiniRailDivisions] =
-    useState<Division[]>(DEFAULT_DIVISIONS);
-  const [activeDivisionId, setActiveDivisionId] = useState(
-    DEFAULT_DIVISIONS[0]?.id ?? "qa",
-  );
+  const [miniRailDivisions, setMiniRailDivisions] = useState<Division[]>([]);
+  const [activeDivisionId, setActiveDivisionId] = useState("");
   const pathname = usePathname();
 
   const miniRailItems = [
@@ -51,77 +45,48 @@ export default function AppShell({ children }: AppShellProps) {
   ];
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    const fetchAndSync = async () => {
+      try {
+        const res = await fetch("/api/divisions");
+        if (!res.ok) return;
+        const json = (await res.json()) as { data: Division[] };
+        const fetched = json.data ?? [];
+        setMiniRailDivisions(fetched);
 
-    const storedDivisions = safeParseDivisions(
-      window.localStorage.getItem(DIVISIONS_STORAGE_KEY),
-    );
-    if (storedDivisions) {
-      setMiniRailDivisions(storedDivisions);
-    }
+        const storedActive =
+          typeof window !== "undefined"
+            ? window.localStorage.getItem(ACTIVE_DIVISION_STORAGE_KEY)
+            : null;
 
-    const storedActiveDivisionId = window.localStorage.getItem(
-      ACTIVE_DIVISION_STORAGE_KEY,
-    );
-    if (storedActiveDivisionId) {
-      setActiveDivisionId(storedActiveDivisionId);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const syncDivisionContext = () => {
-      const storedDivisions = safeParseDivisions(
-        window.localStorage.getItem(DIVISIONS_STORAGE_KEY),
-      );
-      const nextDivisions = storedDivisions ?? DEFAULT_DIVISIONS;
-      const storedActiveDivisionId = window.localStorage.getItem(
-        ACTIVE_DIVISION_STORAGE_KEY,
-      );
-
-      setMiniRailDivisions(nextDivisions);
-      setActiveDivisionId(
-        nextDivisions.some((division) => division.id === storedActiveDivisionId)
-          ? (storedActiveDivisionId ?? nextDivisions[0]?.id ?? "qa")
-          : (nextDivisions[0]?.id ?? "qa"),
-      );
-    };
-
-    const onCustomDivisionContextChange = () => {
-      syncDivisionContext();
-    };
-
-    const onStorage = (event: StorageEvent) => {
-      if (
-        event.key === DIVISIONS_STORAGE_KEY ||
-        event.key === ACTIVE_DIVISION_STORAGE_KEY
-      ) {
-        syncDivisionContext();
+        const resolved = fetched.some((d) => d.id === storedActive)
+          ? storedActive!
+          : (fetched[0]?.id ?? "");
+        setActiveDivisionId(resolved);
+      } catch {
+        // keep existing state
       }
     };
 
-    window.addEventListener(
-      DIVISION_CONTEXT_EVENT,
-      onCustomDivisionContextChange,
-    );
-    window.addEventListener("storage", onStorage);
+    void fetchAndSync();
 
-    return () => {
-      window.removeEventListener(
-        DIVISION_CONTEXT_EVENT,
-        onCustomDivisionContextChange,
-      );
-      window.removeEventListener("storage", onStorage);
+    const onContextChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ activeDivisionId: string }>).detail;
+      if (detail?.activeDivisionId) {
+        setActiveDivisionId(detail.activeDivisionId);
+      }
     };
+
+    window.addEventListener(DIVISION_CONTEXT_EVENT, onContextChange);
+    return () => window.removeEventListener(DIVISION_CONTEXT_EVENT, onContextChange);
   }, []);
 
   const getMiniRailDotClass = (division: Division) => {
-    if (division.accentBarClass.includes("teal")) return "bg-(--accent-teal)";
-    if (division.accentBarClass.includes("amber")) return "bg-(--accent-amber)";
-    if (division.accentBarClass.includes("purple"))
-      return "bg-(--accent-purple)";
-    return "bg-(--accent-primary)";
+    switch (division.accentColor) {
+      case "teal": return "bg-(--accent-teal)";
+      case "amber": return "bg-(--accent-amber)";
+      case "purple": return "bg-(--accent-purple)";
+      default: return "bg-(--accent-primary)";
+    }
   };
 
   return (
@@ -136,7 +101,7 @@ export default function AppShell({ children }: AppShellProps) {
             <Sidebar onClose={() => setIsSidebarOpen(false)} />
           </div>
         ) : (
-          <aside className="glass flex h-full w-14 flex-col items-center rounded-full border border-(--glass-border) p-2">
+          <aside className="panel-rail flex h-full w-14 flex-col items-center p-2">
             <div className="mb-2 flex size-10 items-center justify-center rounded-full bg-(--accent-primary)">
               <ShieldChevron weight="duotone" size={20} color="white" />
             </div>
@@ -183,17 +148,13 @@ export default function AppShell({ children }: AppShellProps) {
                     href={item.href}
                     className={cn(
                       baseClasses,
-                      isActive
-                        ? "bg-(--glass-bg-active)"
-                        : "hover:bg-(--glass-bg-hover)",
+                      isActive ? "liquid-selected" : "hover:bg-(--glass-bg-hover)",
                     )}
                   >
                     <Icon
                       weight="duotone"
                       size={18}
-                      color={
-                        isActive ? "var(--accent-primary)" : "var(--text-muted)"
-                      }
+                      color={isActive ? "white" : "var(--text-muted)"}
                     />
                   </Link>
                 );
@@ -210,16 +171,10 @@ export default function AppShell({ children }: AppShellProps) {
                   onClick={() => {
                     setActiveDivisionId(division.id);
                     if (typeof window !== "undefined") {
-                      window.localStorage.setItem(
-                        ACTIVE_DIVISION_STORAGE_KEY,
-                        division.id,
-                      );
+                      window.localStorage.setItem(ACTIVE_DIVISION_STORAGE_KEY, division.id);
                       window.dispatchEvent(
                         new CustomEvent(DIVISION_CONTEXT_EVENT, {
-                          detail: {
-                            activeDivisionId: division.id,
-                            divisions: miniRailDivisions,
-                          },
+                          detail: { activeDivisionId: division.id },
                         }),
                       );
                     }
@@ -274,17 +229,13 @@ export default function AppShell({ children }: AppShellProps) {
                     href={item.href}
                     className={cn(
                       buttonClasses,
-                      isActive
-                        ? "bg-(--glass-bg-active)"
-                        : "hover:bg-(--glass-bg-hover)",
+                      isActive ? "liquid-selected" : "hover:bg-(--glass-bg-hover)",
                     )}
                   >
                     <Icon
                       weight="duotone"
                       size={18}
-                      color={
-                        isActive ? "var(--accent-primary)" : "var(--text-muted)"
-                      }
+                      color={isActive ? "white" : "var(--text-muted)"}
                     />
                   </Link>
                 );

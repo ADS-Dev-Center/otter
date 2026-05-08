@@ -37,7 +37,7 @@ export default function ProjectsPage() {
             </h1>
           </div>
           <p className="text-sm mt-1 text-(--text-muted)">
-            Manage your team's credential vaults across all divisions.
+            Manage your team&apos;s credential vaults across all divisions.
           </p>
         </div>
 

@@ -9,7 +9,7 @@ Inside project detail pages, credentials should be grouped by environment such a
 - install shadcn component only the components that we need
 - dont change the style from `component/ui/*`
 - customize the components only with `className`
-- dont you ever usinf `style={{}}` and use `cn()` function if needed
+- dont you ever using `style={{}}` and use `cn()` function if needed
 
 ### sidebar
 

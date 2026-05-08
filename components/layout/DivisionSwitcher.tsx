@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Buildings, CaretRight, Plus } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,14 +14,10 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   ACTIVE_DIVISION_STORAGE_KEY,
-  createDivisionId,
-  DEFAULT_DIVISIONS,
   DIVISION_CONTEXT_EVENT,
-  DIVISIONS_STORAGE_KEY,
   type Division,
   getDivisionInitials,
   getDivisionPalette,
-  safeParseDivisions,
 } from "@/lib/divisions";
 import { cn } from "@/lib/utils";
 
@@ -34,161 +30,122 @@ export default function DivisionSwitcher({
   onDivisionChange,
   onAddDivision,
 }: DivisionSwitcherProps) {
-  const [divisions, setDivisions] = useState<Division[]>(DEFAULT_DIVISIONS);
-  const [activeDivisionId, setActiveDivisionId] = useState(
-    DEFAULT_DIVISIONS[0]?.id ?? "qa",
-  );
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [activeDivisionId, setActiveDivisionId] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newDivisionName, setNewDivisionName] = useState("");
-  const [newDivisionDescription, setNewDivisionDescription] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const fetchDivisions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/divisions");
+      if (!res.ok) return;
+      const json = (await res.json()) as { data: Division[] };
+      const fetched = json.data ?? [];
+      setDivisions(fetched);
 
-    const storedDivisions = safeParseDivisions(
-      window.localStorage.getItem(DIVISIONS_STORAGE_KEY),
-    );
-    const nextDivisions = storedDivisions ?? DEFAULT_DIVISIONS;
+      const storedActive =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(ACTIVE_DIVISION_STORAGE_KEY)
+          : null;
 
-    const storedActive = window.localStorage.getItem(
-      ACTIVE_DIVISION_STORAGE_KEY,
-    );
-    const resolvedActive = nextDivisions.some(
-      (division) => division.id === storedActive,
-    )
-      ? storedActive
-      : nextDivisions[0]?.id;
-
-    setDivisions(nextDivisions);
-    setActiveDivisionId(resolvedActive ?? DEFAULT_DIVISIONS[0]?.id ?? "qa");
+      const resolved = fetched.some((d) => d.id === storedActive)
+        ? storedActive!
+        : (fetched[0]?.id ?? "");
+      setActiveDivisionId(resolved);
+    } catch {
+      // keep existing state
+    }
   }, []);
 
   useEffect(() => {
+    void fetchDivisions();
+  }, [fetchDivisions]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const syncDivisionContext = () => {
-      const storedDivisions = safeParseDivisions(
-        window.localStorage.getItem(DIVISIONS_STORAGE_KEY),
-      );
-      const nextDivisions = storedDivisions ?? DEFAULT_DIVISIONS;
+    const onContextChange = () => {
       const storedActive = window.localStorage.getItem(
         ACTIVE_DIVISION_STORAGE_KEY,
       );
-      const resolvedActive = nextDivisions.some(
-        (division) => division.id === storedActive,
-      )
-        ? storedActive
-        : nextDivisions[0]?.id;
-
-      setDivisions(nextDivisions);
-      setActiveDivisionId(resolvedActive ?? DEFAULT_DIVISIONS[0]?.id ?? "qa");
+      if (storedActive) setActiveDivisionId(storedActive);
     };
 
-    const onStorage = (event: StorageEvent) => {
-      if (
-        event.key === DIVISIONS_STORAGE_KEY ||
-        event.key === ACTIVE_DIVISION_STORAGE_KEY
-      ) {
-        syncDivisionContext();
-      }
-    };
-
-    window.addEventListener(DIVISION_CONTEXT_EVENT, syncDivisionContext);
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      window.removeEventListener(DIVISION_CONTEXT_EVENT, syncDivisionContext);
-      window.removeEventListener("storage", onStorage);
-    };
+    window.addEventListener(DIVISION_CONTEXT_EVENT, onContextChange);
+    return () =>
+      window.removeEventListener(DIVISION_CONTEXT_EVENT, onContextChange);
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    window.localStorage.setItem(
-      DIVISIONS_STORAGE_KEY,
-      JSON.stringify(divisions),
-    );
-  }, [divisions]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    window.localStorage.setItem(ACTIVE_DIVISION_STORAGE_KEY, activeDivisionId);
-  }, [activeDivisionId]);
-
   const activeDivision = useMemo(
-    () =>
-      divisions.find((d) => d.id === activeDivisionId) ||
-      divisions[0] ||
-      DEFAULT_DIVISIONS[0],
+    () => divisions.find((d) => d.id === activeDivisionId) ?? divisions[0],
     [activeDivisionId, divisions],
   );
 
   const handleDivisionSelect = (divisionId: string) => {
     setActiveDivisionId(divisionId);
-    onDivisionChange?.(divisionId);
+    // Write before dispatching so any listener sees the updated value immediately
     if (typeof window !== "undefined") {
+      window.localStorage.setItem(ACTIVE_DIVISION_STORAGE_KEY, divisionId);
       window.dispatchEvent(
         new CustomEvent(DIVISION_CONTEXT_EVENT, {
-          detail: { activeDivisionId: divisionId, divisions },
+          detail: { activeDivisionId: divisionId },
         }),
       );
     }
+    onDivisionChange?.(divisionId);
     setIsOpen(false);
   };
 
-  const handleCreateDivision = () => {
+  const handleCreateDivision = async () => {
     const trimmedName = newDivisionName.trim();
     if (!trimmedName) return;
 
-    const palette = getDivisionPalette(divisions.length);
-    const newDivision: Division = {
-      id: createDivisionId(trimmedName),
-      name: trimmedName,
-      iconBgClass: palette.iconBgClass,
-      iconColor: palette.iconColor,
-      accentBarClass: palette.accentBarClass,
-      memberCount: 1,
-      members: [
-        {
-          initials: getDivisionInitials(trimmedName),
-          gradientFrom: palette.gradientFrom,
-          gradientTo: palette.gradientTo,
-        },
-      ],
-    };
-
-    const nextDivisions = [...divisions, newDivision];
-    setDivisions(nextDivisions);
-    onAddDivision?.();
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent(DIVISION_CONTEXT_EVENT, {
-          detail: { activeDivisionId, divisions: nextDivisions },
-        }),
-      );
+    setIsCreating(true);
+    setCreateError("");
+    try {
+      const res = await fetch("/api/divisions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmedName }),
+      });
+      if (!res.ok) {
+        const json = (await res.json()) as { error?: { message?: string } };
+        setCreateError(json.error?.message ?? "Failed to create division");
+        return;
+      }
+      await fetchDivisions();
+      onAddDivision?.();
+      setNewDivisionName("");
+      setIsCreateOpen(false);
+      setIsOpen(false);
+    } catch {
+      setCreateError("An unexpected error occurred");
+    } finally {
+      setIsCreating(false);
     }
-
-    // Stay on current division after creating a new one.
-    setNewDivisionName("");
-    setNewDivisionDescription("");
-    setIsCreateOpen(false);
-    setIsOpen(false);
   };
+
+  if (!activeDivision) {
+    return (
+      <div className="px-2 py-3 border-b border-(--glass-border-subtle)">
+        <div className="h-10 rounded-lg bg-(--glass-bg) animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative px-2 py-3 border-b border-(--glass-border-subtle)">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 transition-colors hover:bg-(--glass-bg-hover) group"
+        className="group flex w-full items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 transition-all duration-150 hover:border-(--glass-border-subtle) hover:bg-(--glass-bg-hover)"
       >
-        {/* Division icon */}
         <div
           className={cn(
-            "size-8 rounded-lg flex items-center justify-center shrink-0",
+            "size-8 shrink-0 rounded-lg flex items-center justify-center",
             activeDivision.iconBgClass,
           )}
         >
@@ -199,24 +156,23 @@ export default function DivisionSwitcher({
           />
         </div>
 
-        {/* Division name */}
         <div className="flex-1 min-w-0 text-left">
           <p className="text-xs font-semibold text-(--text-primary) truncate">
             {activeDivision.name}
           </p>
           <p className="text-[10px] text-(--text-muted) truncate">
-            {activeDivision.memberCount} members
+            {activeDivision.memberCount}{" "}
+            {activeDivision.memberCount === 1 ? "member" : "members"}
           </p>
         </div>
 
-        {/* Member avatars */}
-        <div className="flex items-center -space-x-1 shrink-0">
-          {activeDivision.members.slice(0, 3).map((member, idx) => (
+        <div className="flex shrink-0 items-center -space-x-1">
+          {activeDivision.members.slice(0, 3).map((member) => (
             <div
-              key={idx}
+              key={`${member.initials}-${member.gradientFrom}`}
               className={cn(
                 "size-5 rounded-full flex items-center justify-center",
-                "text-[7px] font-bold text-white bg-gradient-to-br shrink-0",
+                "text-[7px] font-bold text-white bg-linear-to-br shrink-0",
                 "ring-1 ring-(--glass-border-subtle)",
                 member.gradientFrom,
                 member.gradientTo,
@@ -226,98 +182,89 @@ export default function DivisionSwitcher({
             </div>
           ))}
           {activeDivision.memberCount > 3 && (
-            <div className="size-5 rounded-full flex items-center justify-center text-[7px] font-bold glass shrink-0 ring-1 ring-(--glass-border-subtle) text-(--text-muted)">
-              +{Math.max(activeDivision.memberCount - 3, 0)}
+            <div className="glass flex size-5 shrink-0 items-center justify-center rounded-full text-[7px] font-bold text-(--text-muted) ring-1 ring-(--glass-border-subtle)">
+              +{activeDivision.memberCount - 3}
             </div>
           )}
         </div>
 
-        {/* Dropdown indicator */}
         <CaretRight
           weight="duotone"
           size={14}
           color="var(--text-muted)"
           className={cn(
-            "shrink-0 transition-transform duration-200",
-            isOpen && "rotate-90",
+            "shrink-0 transition-transform duration-200 ease-out",
+            isOpen
+              ? "rotate-90 opacity-70"
+              : "opacity-40 group-hover:opacity-70",
           )}
         />
       </button>
 
-      {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute top-full left-2 right-2 mt-2 z-50 rounded-lg border border-(--glass-border) bg-(--glass-bg) shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-md overflow-hidden">
-          {divisions.map((division) => {
-            const isActive = division.id === activeDivisionId;
-            return (
-              <button
-                key={division.id}
-                type="button"
-                onClick={() => handleDivisionSelect(division.id)}
-                className={cn(
-                  "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors",
-                  isActive
-                    ? "bg-(--glass-bg-active)"
-                    : "hover:bg-(--glass-bg-hover)",
-                )}
-              >
-                {/* Division icon */}
-                <div
+        <div className="panel-dropdown absolute left-0 right-0 top-full z-50 mt-1.5 animate-in fade-in-0 zoom-in-95 duration-150">
+          {/* top edge highlight */}
+          <div className="h-px bg-[linear-gradient(to_right,transparent,rgba(255,255,255,0.22),transparent)]" />
+
+          <div className="flex flex-col gap-0.5 p-1.5">
+            {divisions.map((division) => {
+              const isActive = division.id === activeDivisionId;
+              return (
+                <button
+                  key={division.id}
+                  type="button"
+                  onClick={() => handleDivisionSelect(division.id)}
                   className={cn(
-                    "size-8 rounded-lg flex items-center justify-center shrink-0",
-                    division.iconBgClass,
+                    "group relative flex w-full items-center gap-2.5 overflow-hidden rounded-lg px-2.5 py-2.5 text-left transition-all duration-100",
+                    isActive
+                      ? "bg-[rgba(77,142,255,0.12)]"
+                      : "hover:bg-[rgba(255,255,255,0.05)]",
                   )}
                 >
-                  <Buildings
-                    weight="duotone"
-                    size={16}
-                    color={division.iconColor}
-                  />
-                </div>
+                  {isActive && (
+                    <span className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r-full bg-(--accent-primary) shadow-[0_0_8px_var(--accent-primary)]" />
+                  )}
 
-                {/* Division info */}
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={cn(
-                      "text-xs font-semibold truncate",
-                      isActive
-                        ? "text-(--text-primary)"
-                        : "text-(--text-subtle)",
-                    )}
-                  >
-                    {division.name}
-                  </p>
-                  <p className="text-[10px] text-(--text-muted) truncate">
-                    {division.memberCount} members
-                  </p>
-                </div>
+                  <div className={cn("size-8 shrink-0 rounded-lg flex items-center justify-center", division.iconBgClass)}>
+                    <Buildings weight="duotone" size={16} color={division.iconColor} />
+                  </div>
 
-                {/* Active indicator */}
-                {isActive && (
-                  <div className="size-2 rounded-full bg-(--accent-primary) shrink-0" />
-                )}
-              </button>
-            );
-          })}
+                  <div className="min-w-0 flex-1">
+                    <p className={cn(
+                      "truncate text-xs font-semibold transition-colors",
+                      isActive ? "text-(--text-primary)" : "text-(--text-subtle) group-hover:text-(--text-primary)",
+                    )}>
+                      {division.name}
+                    </p>
+                    <p className="truncate text-[10px] text-(--text-muted)">
+                      {division.memberCount} {division.memberCount === 1 ? "member" : "members"}
+                    </p>
+                  </div>
 
-          {/* Divider */}
-          <div className="h-px bg-(--glass-border-subtle)" />
+                  {isActive && (
+                    <div className="size-1.5 shrink-0 rounded-full bg-(--accent-primary) shadow-[0_0_6px_var(--accent-primary)]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-          {/* Add Division Button */}
-          <button
-            type="button"
-            onClick={() => {
-              onAddDivision?.();
-              setIsCreateOpen(true);
-              setIsOpen(false);
-            }}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-(--glass-bg-hover) text-(--text-subtle) hover:text-(--text-primary)"
-          >
-            <div className="size-8 rounded-lg flex items-center justify-center shrink-0 bg-(--glass-bg-hover)">
-              <Plus weight="duotone" size={16} color="var(--accent-primary)" />
-            </div>
-            <span className="text-xs font-semibold">Add Division</span>
-          </button>
+          <div className="mx-3 h-px bg-[linear-gradient(to_right,transparent,rgba(255,255,255,0.07),transparent)]" />
+
+          <div className="p-1.5">
+            <button
+              type="button"
+              onClick={() => { onAddDivision?.(); setIsCreateOpen(true); setIsOpen(false); }}
+              className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left transition-all duration-100 hover:bg-[rgba(255,255,255,0.05)]"
+            >
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[rgba(77,142,255,0.10)] transition-colors group-hover:bg-[rgba(77,142,255,0.16)]">
+                <Plus weight="duotone" size={16} color="var(--accent-primary)" />
+              </div>
+              <span className="text-xs font-semibold text-(--text-muted) transition-colors group-hover:text-(--text-primary)">
+                Add Division
+              </span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -326,10 +273,7 @@ export default function DivisionSwitcher({
           open={isCreateOpen}
           onOpenChange={(open) => {
             setIsCreateOpen(open);
-            if (!open) {
-              setNewDivisionName("");
-              setNewDivisionDescription("");
-            }
+            if (!open) setNewDivisionName("");
           }}
         >
           <DialogContent className="glass-heavy max-w-md rounded-2xl border-(--glass-border) bg-(--glass-bg-raised) p-5 text-(--text-primary)">
@@ -338,7 +282,7 @@ export default function DivisionSwitcher({
                 Create Division
               </DialogTitle>
               <DialogDescription className="text-(--text-muted)">
-                New division will be created but your current active division remains unchanged.
+                Your active division stays unchanged after creating a new one.
               </DialogDescription>
             </DialogHeader>
 
@@ -349,40 +293,40 @@ export default function DivisionSwitcher({
                 </label>
                 <Input
                   value={newDivisionName}
-                  onChange={(event) => setNewDivisionName(event.target.value)}
+                  onChange={(e) => setNewDivisionName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newDivisionName.trim()) {
+                      void handleCreateDivision();
+                    }
+                  }}
                   placeholder="e.g. Security Division"
                   className="h-10 border-(--glass-border) bg-(--glass-bg) text-(--text-primary) placeholder:text-(--text-muted)"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-(--text-subtle)">
-                  Description (optional)
-                </label>
-                <Input
-                  value={newDivisionDescription}
-                  onChange={(event) => setNewDivisionDescription(event.target.value)}
-                  placeholder="Short description"
-                  className="h-10 border-(--glass-border) bg-(--glass-bg) text-(--text-primary) placeholder:text-(--text-muted)"
+                  autoFocus
                 />
               </div>
             </div>
 
-            <DialogFooter className="gap-2">
+            {createError && (
+            <p className="text-xs text-(--state-error) bg-[rgba(240,68,56,0.08)] border border-[rgba(240,68,56,0.2)] rounded-lg px-3 py-2">
+              {createError}
+            </p>
+          )}
+          <DialogFooter className="gap-2">
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => setIsCreateOpen(false)}
+                onClick={() => { setIsCreateOpen(false); setCreateError(""); }}
                 className="text-(--text-subtle) hover:bg-(--glass-bg-hover) hover:text-(--text-primary)"
               >
                 Cancel
               </Button>
               <Button
                 type="button"
-                onClick={handleCreateDivision}
-                disabled={!newDivisionName.trim()}
+                onClick={() => void handleCreateDivision()}
+                disabled={!newDivisionName.trim() || isCreating}
                 className="rounded-lg"
               >
-                Create Division
+                {isCreating ? "Creating…" : "Create Division"}
               </Button>
             </DialogFooter>
           </DialogContent>

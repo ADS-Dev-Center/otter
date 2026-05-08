@@ -1,8 +1,6 @@
 "use client";
 
 import { SignOutButton, UserButton, useUser } from "@clerk/nextjs";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   SquaresFour,
   FolderLock,
@@ -11,10 +9,12 @@ import {
   GearSix,
   Lifebuoy,
   SignOut,
-  X,
   ShieldChevron,
+  X,
 } from "@phosphor-icons/react";
 import type { IconProps } from "@phosphor-icons/react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import DivisionSwitcher from "./DivisionSwitcher";
 
@@ -61,7 +61,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const email = user?.primaryEmailAddress?.emailAddress ?? "No email";
 
   return (
-    <aside className="pointer-events-auto flex h-full w-60 flex-col rounded-xl border border-(--glass-border) bg-(--glass-bg) shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-md">
+    <aside className="panel-sidebar pointer-events-auto flex h-full w-60 flex-col">
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-(--glass-border-subtle) px-4">
         <div className="flex size-10 items-center justify-center rounded-lg bg-(--accent-primary)">
           <ShieldChevron weight="duotone" size={22} color="white" />
@@ -77,7 +77,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         <button
           type="button"
           onClick={onClose}
-          className="ml-auto inline-flex size-8 items-center justify-center rounded-lg border border-(--glass-border-subtle) bg-(--glass-bg) text-(--text-muted) transition-colors hover:bg-(--glass-bg-hover) hover:text-(--text-primary)"
+          className="liquid-chip ml-auto inline-flex size-8 items-center justify-center rounded-lg text-(--text-muted) transition-colors hover:text-(--text-primary)"
           aria-label="Close sidebar"
         >
           <X weight="duotone" size={16} />
@@ -91,26 +91,6 @@ export default function Sidebar({ onClose }: SidebarProps) {
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
-            const baseClasses = "group flex items-stretch";
-            const contentClasses = cn(
-              "flex flex-1 items-center gap-3 rounded-lg px-3 py-2 transition-colors",
-              item.isAvailable
-                ? isActive
-                  ? "bg-(--glass-bg-active)"
-                  : "group-hover:bg-(--glass-bg-hover)"
-                : "bg-transparent",
-            );
-            const iconColor = !item.isAvailable
-              ? "var(--text-subtle)"
-              : isActive
-                ? "var(--accent-primary)"
-                : "var(--text-muted)";
-
-            const labelColor = !item.isAvailable
-              ? "text-(--text-muted)"
-              : isActive
-                ? "text-(--text-primary)"
-                : "text-(--text-subtle)";
 
             if (!item.isAvailable) {
               return (
@@ -119,32 +99,40 @@ export default function Sidebar({ onClose }: SidebarProps) {
                   type="button"
                   disabled
                   title="Coming soon"
-                  className={cn(baseClasses, "cursor-not-allowed text-left")}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left text-white transition-colors hover:text-(--text-primary)"
                 >
-                  <span className="w-0.5 shrink-0 rounded-r bg-transparent" />
-                  <span className={contentClasses}>
-                    <Icon weight="duotone" size={20} color={iconColor} />
-                    <span className={cn("text-sm font-medium", labelColor)}>
-                      {item.label}
-                    </span>
+                  <Icon weight="duotone" size={20} color="white" />
+                  <span className="text-sm font-medium text-white">
+                    {item.label}
                   </span>
                 </button>
               );
             }
 
-            return (
-              <Link key={item.href} href={item.href} className={baseClasses}>
-                <span
-                  className={cn(
-                    "w-0.5 shrink-0 rounded-r",
-                    isActive ? "bg-(--accent-primary)" : "bg-transparent",
-                  )}
-                />
-                <span className={contentClasses}>
-                  <Icon weight="duotone" size={20} color={iconColor} />
-                  <span className={cn("text-sm font-medium", labelColor)}>
+            if (isActive) {
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="liquid-selected flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-white"
+                >
+                  <Icon weight="duotone" size={20} color="white" />
+                  <span className="text-sm font-medium text-white">
                     {item.label}
                   </span>
+                </Link>
+              );
+            }
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex w-full items-center gap-3 px-3 py-2 text-left text-white transition-colors hover:text-(--text-primary)"
+              >
+                <Icon weight="duotone" size={20} color="white" />
+                <span className="text-sm font-medium text-white">
+                  {item.label}
                 </span>
               </Link>
             );
@@ -156,48 +144,32 @@ export default function Sidebar({ onClose }: SidebarProps) {
             {bottomItems.map((item) => {
               const isActive = pathname === item.href;
               const Icon = item.icon;
-              const itemContentClasses = cn(
-                "flex flex-1 items-center gap-3 rounded-lg px-3 py-2 transition-colors",
-                item.isAvailable
-                  ? isActive
-                    ? "bg-(--glass-bg-active)"
-                    : "group-hover:bg-(--glass-bg-hover)"
-                  : "bg-transparent",
-              );
 
               if (item.isAvailable) {
+                if (isActive) {
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="liquid-selected flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-white"
+                    >
+                      <Icon weight="duotone" size={20} color="white" />
+                      <span className="text-sm font-medium text-white">
+                        {item.label}
+                      </span>
+                    </Link>
+                  );
+                }
+
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="group flex items-stretch"
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-white transition-colors hover:text-(--text-primary)"
                   >
-                    <span
-                      className={cn(
-                        "w-0.5 shrink-0 rounded-r",
-                        isActive ? "bg-(--accent-primary)" : "bg-transparent",
-                      )}
-                    />
-                    <span className={itemContentClasses}>
-                      <Icon
-                        weight="duotone"
-                        size={20}
-                        color={
-                          isActive
-                            ? "var(--accent-primary)"
-                            : "var(--text-muted)"
-                        }
-                      />
-                      <span
-                        className={cn(
-                          "text-sm font-medium",
-                          isActive
-                            ? "text-(--text-primary)"
-                            : "text-(--text-subtle)",
-                        )}
-                      >
-                        {item.label}
-                      </span>
+                    <Icon weight="duotone" size={20} color="white" />
+                    <span className="text-sm font-medium text-white">
+                      {item.label}
                     </span>
                   </Link>
                 );
@@ -209,18 +181,11 @@ export default function Sidebar({ onClose }: SidebarProps) {
                   type="button"
                   disabled
                   title="Coming soon"
-                  className="group flex cursor-not-allowed items-stretch text-left"
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left text-white transition-colors hover:text-(--text-primary)"
                 >
-                  <span className="w-0.5 shrink-0 rounded-r bg-transparent" />
-                  <span className={itemContentClasses}>
-                    <Icon
-                      weight="duotone"
-                      size={20}
-                      color="var(--text-subtle)"
-                    />
-                    <span className="text-sm font-medium text-(--text-muted)">
-                      {item.label}
-                    </span>
+                  <Icon weight="duotone" size={20} color="white" />
+                  <span className="text-sm font-medium text-white">
+                    {item.label}
                   </span>
                 </button>
               );

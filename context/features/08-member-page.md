@@ -1,6 +1,6 @@
 ## goals
 
-Build `/members` screen using `shadcn/ui` component with no api calls or presistence yet.
+Build `/members` screen using `shadcn/ui` component with no api calls or persistence yet.
 
 sidebar should wired to this page
 
@@ -11,7 +11,7 @@ always check skills first
 - install shadcn component only the components that we need
 - dont change the style from `component/ui/*`
 - customize the components only with `className`
-- dont you ever usinf `style={{}}` and use `cn()` function if needed
+- dont you ever using `style={{}}` and use `cn()` function if needed
 
 ### list member
 

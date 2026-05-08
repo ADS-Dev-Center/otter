@@ -5,7 +5,7 @@ change.
 
 ## Current Phase
 
-- Feature 09 complete: Audit log screen implemented
+- Division management complete: Settings page fully wired to real API (create, rename, delete)
 
 ## Current Goal
 
@@ -13,6 +13,13 @@ change.
 
 ## Completed
 
+- Migrated the UI theme from classic glassmorphism to liquid glassmorphism
+- Updated the shared liquid-glass token system in `app/globals.css`
+- Refined the shared button primitive and core shell surfaces for brighter selected/action states
+- Added opaque liquid-chip surfaces for primary buttons and selected rows
+- Removed the blue selected rail in the sidebar and matched sidebar rows to the liquid chip style
+- Switched non-selected sidebar rows to the shared `ghost` button variant
+- Changed inactive sidebar rows to text-only buttons with no filled surface
 - Updated `globals.css` with Otter design tokens and glass utilities
 - Added `app/(app)/layout.tsx` (Server Component app shell)
 - Added `components/layout/Sidebar.tsx` (Client Component)
@@ -124,6 +131,21 @@ change.
 - Verified `npm run build` passes after the audit log implementation
 
 - Redesigned audit log UI for simplicity: replaced massive filter panel (checkbox card groups, info cards, bordered sections occupying ~60% viewport) with compact inline toolbar (search + dropdown selects), toggle pill filters for action/resource types, and clean table — reduced file from 1266 lines to ~280 lines
+- Implemented Feature 10 onboarding flow (real Prisma implementation):
+  - Added `Division` and `DivisionMembership` models with `Role` enum to `prisma/schema.prisma`
+  - Ran `prisma migrate dev --name init` — tables live in the connected Prisma Postgres DB
+  - Created `lib/prisma.ts` — PrismaClient singleton using PrismaPg driver adapter (`@prisma/adapter-pg`)
+  - Created `lib/validations/division.ts` — Zod schema for division creation
+  - Created `app/api/divisions/route.ts` — GET (list user divisions) and POST (create division + DIVISION_OWNER membership)
+  - Created `app/onboarding/page.tsx` — 2-step glassmorphism card: Step 1 creates division (required, name pre-filled from Clerk user), Step 2 invite team (UI only, skippable)
+  - Updated `app/(app)/layout.tsx` — server-side division membership check; redirects to `/onboarding` if user has no division
+  - Updated `components/layout/DivisionSwitcher.tsx` — replaced mock DEFAULT_DIVISIONS with real API fetch; localStorage still persists active division ID across sessions
+  - Installed `zod`, `react-hook-form`, `@hookform/resolvers`
+
+- Division management in Settings:
+  - Added `app/api/divisions/[id]/route.ts` — `PATCH` (rename, owner-only) and `DELETE` (owner-only; guarded: cannot delete last division)
+  - Rewrote `app/(app)/settings/page.tsx` — fetches real divisions from API; inline rename (click pencil → edit in place, Enter/blur to save); delete with confirmation dialog and error display; "New Division" button with create dialog; delete button hidden when only one division remains
+  - Removed all `DEFAULT_DIVISIONS` / `DIVISIONS_STORAGE_KEY` usage from settings page
 
 ## In Progress
 

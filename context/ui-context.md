@@ -2,15 +2,15 @@
 
 ## Theme
 
-Dark only. No light mode. The design language is **glassmorphism** — a deep navy-to-purple gradient base canvas with frosted-glass panels sitting on top of it. Surfaces are semi-transparent with a `backdrop-filter: blur` effect, giving depth and layering without going flat or opaque. Inspired directly by the reference image (CyberX dashboard): a dark blurred background with panels that feel like etched glass, fine light borders, and vivid accent colors cutting through the frost.
+Dark only. No light mode. The design language is **liquid glassmorphism** — a deep navy-to-purple gradient base canvas with frosted, luminous panels sitting on top of it. Surfaces are semi-transparent but denser than classic glass, with a stronger `backdrop-filter` and a subtle liquid sheen so buttons, selected rows, and primary actions remain clear without becoming opaque. Inspired directly by the reference image (CyberX dashboard): a dark blurred background with etched glass layers, fine light borders, and vivid accent colors cutting through the frost.
 
 Key characteristics:
 
 - **Background canvas**: Rich dark gradient (deep navy → dark purple → near-black), not a solid color. Use a fixed full-viewport `background` with a radial or linear gradient so panels float over it.
-- **Glass panels**: Semi-transparent backgrounds (`rgba` values, ~8–15% white opacity) with `backdrop-filter: blur(12px–20px)` and a hairline border (`1px solid rgba(255,255,255,0.08–0.12)`).
+- **Liquid glass panels**: Dark navy bases (`rgba(18–22, 24–28, 46–54, 0.82–0.98)`) with splay radial gradients on top for the white shimmer. **Do not use white-tinted `rgba(255,255,255,…)` bases** — they produce grey panels instead of dark glass. `backdrop-filter: blur(20px–40px) saturate(150%) brightness(0.92–0.94)` with all 5 liquid effects (frost, splay, refraction, depression, depth).
 - **No opaque surfaces**: Even the sidebar and topbar use glass treatment — they are NOT solid dark fills.
-- **Depth through layering**: Panels stack visually; more elevated elements use slightly higher opacity or a lighter glass tint.
-- **Accent colors are vivid and deliberate** — they punch through the frosted layers and signal interactivity or state.
+- **Depth through layering**: Panels stack visually; more elevated elements use slightly higher opacity, brighter highlights, and a lighter liquid tint.
+- **Accent colors are vivid and deliberate** — they punch through the frosted layers and signal interactivity or state. Selected and action surfaces lean brighter instead of darker.
 
 ## Colors
 
@@ -31,16 +31,19 @@ Applied to `<html>` or the root layout wrapper: `background: var(--bg-canvas); b
 
 Glass values use `rgba` — never solid hex fills on panels, sidebar, or topbar.
 
-| Role                          | CSS Variable            | Value                       |
-| ----------------------------- | ----------------------- | --------------------------- |
-| Glass panel (default)         | `--glass-bg`            | `rgba(255, 255, 255, 0.05)` |
-| Glass panel (elevated)        | `--glass-bg-raised`     | `rgba(255, 255, 255, 0.09)` |
-| Glass panel (hover)           | `--glass-bg-hover`      | `rgba(255, 255, 255, 0.08)` |
-| Glass panel (active/selected) | `--glass-bg-active`     | `rgba(59, 126, 246, 0.12)`  |
-| Glass border                  | `--glass-border`        | `rgba(255, 255, 255, 0.10)` |
-| Glass border subtle           | `--glass-border-subtle` | `rgba(255, 255, 255, 0.06)` |
-| Glass blur (default)          | `--glass-blur`          | `blur(16px)`                |
-| Glass blur (heavy)            | `--glass-blur-heavy`    | `blur(24px)`                |
+| Role                          | CSS Variable               | Value                       |
+| ----------------------------- | -------------------------- | --------------------------- |
+| Liquid glass panel (default)  | `--glass-bg`               | `rgba(255, 255, 255, 0.06)` |
+| Liquid glass panel (elevated) | `--glass-bg-raised`        | `rgba(255, 255, 255, 0.11)` |
+| Liquid glass panel (hover)    | `--glass-bg-hover`         | `rgba(255, 255, 255, 0.10)` |
+| Liquid glass panel (active)   | `--glass-bg-active`        | `rgba(77, 142, 255, 0.18)`  |
+| Liquid glass border           | `--glass-border`           | `rgba(255, 255, 255, 0.14)` |
+| Liquid glass border subtle    | `--glass-border-subtle`    | `rgba(255, 255, 255, 0.08)` |
+| Liquid glass blur (default)   | `--glass-blur`             | `blur(18px) saturate(145%)` |
+| Liquid glass blur (heavy)     | `--glass-blur-heavy`       | `blur(28px) saturate(160%)` |
+| Liquid button fill            | `--button-liquid-bg`       | `rgba(109, 161, 255, 0.26)` |
+| Liquid button fill (hover)    | `--button-liquid-bg-hover` | `rgba(125, 175, 255, 0.34)` |
+| Liquid button border          | `--button-liquid-border`   | `rgba(140, 185, 255, 0.42)` |
 
 Usage pattern for any glass panel or card:
 
@@ -86,15 +89,18 @@ use tailwindcss className and `cn()` function if it's needed
   --canvas-end: #080c18;
   --bg-canvas: linear-gradient(135deg, #0b0f1e 0%, #130d2b 50%, #080c18 100%);
 
-  /* Glass surfaces */
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-bg-raised: rgba(255, 255, 255, 0.09);
-  --glass-bg-hover: rgba(255, 255, 255, 0.08);
-  --glass-bg-active: rgba(77, 142, 255, 0.12);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-border-subtle: rgba(255, 255, 255, 0.06);
-  --glass-blur: blur(16px);
-  --glass-blur-heavy: blur(24px);
+  /* Liquid glass surfaces */
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-raised: rgba(255, 255, 255, 0.11);
+  --glass-bg-hover: rgba(255, 255, 255, 0.1);
+  --glass-bg-active: rgba(77, 142, 255, 0.18);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(18px) saturate(145%);
+  --glass-blur-heavy: blur(28px) saturate(160%);
+  --button-liquid-bg: rgba(109, 161, 255, 0.26);
+  --button-liquid-bg-hover: rgba(125, 175, 255, 0.34);
+  --button-liquid-border: rgba(140, 185, 255, 0.42);
 
   /* Text */
   --text-primary: #e8edf5;
@@ -167,67 +173,206 @@ npx shadcn@latest add <component>
 
 Override shadcn's default CSS variables in `globals.css` to apply the glass treatment. In particular, override `--background`, `--card`, `--popover`, `--border`, and `--input` to use the glass tokens instead of shadcn's opaque defaults.
 
+## The 5 Liquid Glass Effects
+
+Every glass surface must express all five of these physical liquid properties. They work together — omitting any one makes the surface look flat or synthetic.
+
+### 1. Frost (Blur + Saturate + Brightness)
+
+**What it is**: The primary blur that makes content behind the glass unreadable as distinct shapes, while amplifying color saturation and slightly dampening brightness so the glass reads as a cold, frosted layer.
+
+**CSS pattern**:
+```css
+backdrop-filter: blur(20px–40px) saturate(150%) brightness(0.92–0.94);
+-webkit-backdrop-filter: blur(20px–40px) saturate(150%) brightness(0.92–0.94);
+```
+
+- `blur`: 20px for cards, 32px for modals, 40px for panels/sidebar
+- `saturate(150%)`: boosts background color bleed for a liquid feel
+- `brightness(0.92–0.94)`: darkens behind-content slightly so the panel reads as a distinct layer
+
+### 2. Splay (Refraction Radial Gradients)
+
+**What it is**: Light enters at angles and "splays" across the surface — simulated by two radial gradients: one at a top corner (top-light catch) and one at the opposite bottom corner (accent bleed). Together they create the soft directional shimmer of glass refracting ambient light.
+
+**CSS pattern**:
+```css
+background:
+  radial-gradient(ellipse at 20% 0%, rgba(255,255,255,0.08–0.12) 0%, transparent 55–60%),
+  radial-gradient(ellipse at 82% 100%, rgba(77,142,255,0.05–0.08) 0%, transparent 50–55%),
+  linear-gradient(160deg, rgba(22,28,52,0.88–0.96) 0%, rgba(10,14,28,0.90–0.98) 100%);
+```
+
+- First gradient: white catch at the top-left — simulates light entry
+- Second gradient: accent-tinted bleed at bottom-right — simulates transmitted light
+- Third gradient: the dark navy base that ensures legibility
+
+### 3. Refraction (Top-edge Highlight Line)
+
+**What it is**: The thinnest line at the very top of a glass element — a single-pixel `inset 0 1px 0` highlight. In real glass, the upper edge catches and bends light more intensely than the face. This line is the signature of liquid glass; without it surfaces look flat.
+
+**CSS pattern**:
+```css
+box-shadow:
+  /* ... depth shadows ... */
+  inset 0 1px 0 rgba(255,255,255,0.13–0.18),   /* refraction: top edge catch */
+  inset 0 -1px 0 rgba(0,0,0,0.18–0.22);         /* refraction: bottom edge absorption */
+```
+
+### 4. Depression (Inset Shadows)
+
+**What it is**: A subtle inward push created by the inset shadows on top and bottom edges. The top inset highlight + bottom inset dark together make the surface read as slightly concave — like liquid pooled in a shallow dish rather than a flat pane.
+
+**CSS pattern**: Same `box-shadow` declaration as Refraction — the pair of inset values creates the depression illusion. The top-edge highlight pushes light "down" while the bottom-edge shadow pulls the surface "in".
+
+### 5. Depth (Layered Drop Shadows)
+
+**What it is**: Two or three external `box-shadow` values of different radii and opacities. The larger, softer shadow creates ambient depth (the panel floating above the canvas). The smaller, sharper shadow creates contact shadow (where the panel "touches" the layer below it). Together they create the Z-axis separation that makes panels feel elevated.
+
+**CSS pattern**:
+```css
+box-shadow:
+  0 20px 56px rgba(0,0,0,0.52),   /* ambient depth: large, soft */
+  0 4px 12px rgba(0,0,0,0.32),    /* contact shadow: small, sharp */
+  inset 0 1px 0 rgba(255,255,255,0.15),  /* refraction top */
+  inset 0 -1px 0 rgba(0,0,0,0.20);      /* depression bottom */
+```
+
+---
+
 ## Glass Utility Classes
 
-Define these reusable classes in `globals.css` for consistent glass application across all components:
+All five effects must be present in every glass class. The classes differ only in intensity (blur radius, base opacity, shadow strength).
+
+**Important**: Glass bases use dark navy (`rgba(22,28,52,…)`) not white. White-tinted bases (`rgba(255,255,255,0.06)`) look washed out against the dark canvas — they produce grey panels instead of dark frosted glass. The splay gradients provide the white shimmer on top of a dark base.
 
 ```css
+/* .glass — default card/panel surface */
 .glass {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px) saturate(150%) brightness(0.94);
+  -webkit-backdrop-filter: blur(20px) saturate(150%) brightness(0.94);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(255,255,255,0.10) 0%, transparent 60%),   /* splay: top catch */
+    radial-gradient(ellipse at 82% 100%, rgba(77,142,255,0.07) 0%, transparent 55%),  /* splay: accent bleed */
+    linear-gradient(160deg, rgba(18,24,46,0.82) 0%, rgba(10,14,28,0.90) 100%);       /* dark navy base */
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.40),            /* depth: ambient */
+    0 2px 6px rgba(0,0,0,0.25),             /* depth: contact */
+    inset 0 1px 0 rgba(255,255,255,0.13),   /* refraction: top edge */
+    inset 0 -1px 0 rgba(0,0,0,0.18);       /* depression: bottom edge */
 }
 
+/* .glass-raised — elevated cards, dropdown menus, popovers */
 .glass-raised {
-  background: var(--glass-bg-raised);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(24px) saturate(150%) brightness(0.92);
+  -webkit-backdrop-filter: blur(24px) saturate(150%) brightness(0.92);
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(255,255,255,0.12) 0%, transparent 58%),
+    radial-gradient(ellipse at 84% 100%, rgba(77,142,255,0.08) 0%, transparent 52%),
+    linear-gradient(160deg, rgba(20,26,50,0.88) 0%, rgba(11,15,30,0.94) 100%);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow:
+    0 12px 36px rgba(0,0,0,0.46),
+    0 3px 8px rgba(0,0,0,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    inset 0 -1px 0 rgba(0,0,0,0.20);
 }
 
+/* .glass-heavy — modals, dialogs, sheets */
 .glass-heavy {
-  background: var(--glass-bg-raised);
-  backdrop-filter: var(--glass-blur-heavy);
-  -webkit-backdrop-filter: var(--glass-blur-heavy);
-  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(32px) saturate(150%) brightness(0.93);
+  -webkit-backdrop-filter: blur(32px) saturate(150%) brightness(0.93);
+  background:
+    radial-gradient(ellipse at 16% 0%, rgba(255,255,255,0.14) 0%, transparent 56%),
+    radial-gradient(ellipse at 86% 100%, rgba(77,142,255,0.09) 0%, transparent 50%),
+    linear-gradient(160deg, rgba(22,28,54,0.93) 0%, rgba(12,16,32,0.97) 100%);
+  border: 1px solid rgba(255,255,255,0.16);
+  box-shadow:
+    0 24px 64px rgba(0,0,0,0.56),
+    0 6px 16px rgba(0,0,0,0.34),
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.22);
+}
+
+/* .panel-sidebar, .panel-rail, .panel-dropdown — navigation panels */
+/* Shared base: darkest frost (blur 40px) for maximum panel opacity */
+.panel-sidebar,
+.panel-rail,
+.panel-dropdown {
+  backdrop-filter: blur(40px) saturate(150%) brightness(0.92);
+  -webkit-backdrop-filter: blur(40px) saturate(150%) brightness(0.92);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(255,255,255,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(77,142,255,0.05) 0%, transparent 50%),
+    linear-gradient(160deg, rgba(22,28,52,0.96) 0%, rgba(11,15,30,0.98) 100%);
+  border: 1px solid rgba(255,255,255,0.13);
+}
+
+.panel-sidebar {
+  box-shadow:
+    0 20px 56px rgba(0,0,0,0.52),
+    0 4px 12px rgba(0,0,0,0.32),
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    inset 0 -1px 0 rgba(0,0,0,0.20);
+  @apply rounded-xl overflow-hidden;
+}
+
+.panel-rail {
+  box-shadow:
+    0 20px 56px rgba(0,0,0,0.52),
+    0 4px 12px rgba(0,0,0,0.32),
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    inset 0 -1px 0 rgba(0,0,0,0.20);
+  @apply rounded-2xl overflow-hidden;
+}
+
+.panel-dropdown {
+  box-shadow:
+    0 24px 48px rgba(0,0,0,0.60),
+    0 6px 14px rgba(0,0,0,0.38),
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 -1px 0 rgba(0,0,0,0.22);
+  @apply rounded-xl overflow-hidden;
 }
 ```
 
-Apply `.glass` via Tailwind's `@apply` or as a className directly. Never use Tailwind's `bg-*` color utilities on panels — always go through the glass token system.
+Apply `.glass` / `.glass-raised` / `.glass-heavy` as a className directly. Never use Tailwind's `bg-*` color utilities on panels — always go through the liquid glass class system.
 
 ## Layout Patterns
 
 - **Root layout**: `<html>` or root wrapper gets `background: var(--bg-canvas); background-attachment: fixed` so the gradient is always behind everything regardless of scroll.
-- **App shell**: Full-viewport layout with a fixed left sidebar (240px), top header bar (56px), and scrollable main content area. All three use `.glass` treatment — none are opaque.
-- **Sidebar**: `.glass` with a right border `var(--glass-border)`. Navigation items: icon + label. Active item has `var(--accent-primary)` left border + `var(--glass-bg-active)` background.
-- **Header / topbar**: `.glass` with a bottom border `var(--glass-border-subtle)`. Contains breadcrumb, search input (also glass), and OTP badge.
+- **App shell**: Full-viewport layout with a fixed left sidebar (240px), top header bar (56px), and scrollable main content area. All three use liquid glass treatment — none are opaque.
+- **Sidebar**: `.glass` with a right border `var(--glass-border)`. Navigation items: icon + label. Active item uses the brighter liquid active fill with `var(--accent-primary)` left border.
+- **Header / topbar**: `.glass-raised` with a bottom border `var(--glass-border-subtle)`. Contains breadcrumb, search input (also glass), and OTP badge.
 - **Content area**: No background of its own — panels sit directly on the gradient canvas, separated by their glass surfaces.
 - **Cards / stat panels**: `.glass` with `rounded-xl`. Use `.glass-raised` for modals or dropdown menus that float over other glass panels.
 - **Data tables**: The table container uses `.glass`. Row hover uses `var(--glass-bg-hover)` via `backdrop-filter` on the row (not a solid fill). Column headers sit on `var(--glass-bg-raised)` with `var(--glass-border-subtle)` bottom border.
-- **Modals / dialogs**: `.glass-heavy` (`backdrop-filter: blur(24px)`), `rounded-2xl`, centered over a `rgba(0,0,0,0.5)` full-screen overlay.
-- **Credential cards**: Glass card with credential name, type badge, masked value in mono, copy button, and reveal toggle. Badge backgrounds use semi-transparent accent colors (`rgba(accent, 0.12)`).
+- **Modals / dialogs**: `.glass-heavy` (`backdrop-filter: blur(28px) saturate(160%)`), `rounded-2xl`, centered over a `rgba(0,0,0,0.5)` full-screen overlay.
+- **Credential cards**: Glass card with credential name, type badge, masked value in mono, copy button, and reveal toggle. Badge backgrounds use semi-transparent accent colors, but primary call-to-action buttons use opaque liquid fills so they read clearly over the canvas.
 - **Risk / sensitivity bars**: Horizontal bar indicator for credential sensitivity — color-coded using `--risk-*` tokens. Bar track is `var(--glass-bg-raised)`.
-- **Inputs / search fields**: Glass treatment — `background: var(--glass-bg)`, `border: 1px solid var(--glass-border)`, `backdrop-filter: var(--glass-blur)`. Focus state: border shifts to `var(--accent-primary)` at `0.4` opacity.
-- **Buttons**: Primary button — solid `var(--accent-primary)` fill (no glass, this provides contrast against glass panels). Ghost/icon buttons — `var(--glass-bg)` with `var(--glass-border)`.
+- **Inputs / search fields**: Glass treatment — `background: var(--glass-bg-raised)`, `border: 1px solid var(--glass-border)`, `backdrop-filter: var(--glass-blur)`. Focus state: border shifts to `var(--accent-primary)` at about `0.5` opacity and the field brightens slightly.
+- **Buttons**: Primary button — opaque liquid fill using `liquid-button` with a brighter border and subtle inner highlight. Ghost/icon buttons — opaque `liquid-chip` surfaces, not transparent glass.
 
 ## Glassmorphism Rules
 
 These rules must be followed to maintain visual consistency:
 
-1. **Never use solid opaque fills on panels, sidebars, cards, or the topbar.** Every surface that sits on the canvas must be semi-transparent glass.
-2. **The gradient canvas must always be visible through panels.** If a component looks flat or solid, its opacity is too high — reduce it.
-3. **Backdrop-filter is required on all glass elements.** Without it, the glass effect is broken — the panel just looks like a semi-transparent colored div with no blur.
-4. **Borders must be hairline and light.** Use `1px solid rgba(255,255,255,0.08–0.12)` — never a dark border or a thick border on glass surfaces.
-5. **Accent colors are NOT glassed.** Badges, active states, and primary buttons use solid or semi-transparent accent fills (`rgba(accent, 0.12–1.0)`), not glass blur.
-6. **Test backdrop-filter support.** Use `@supports (backdrop-filter: blur(1px))` and provide a slightly more opaque fallback (`rgba(10,14,30,0.85)`) for browsers that don't support it.
+1. **Never use solid opaque fills on panels, sidebars, cards, or the topbar.** Every surface that sits on the canvas must stay liquid and translucent.
+2. **All 5 liquid effects are required on every glass surface.** Missing any one makes the surface look synthetic: Frost (backdrop-filter blur+saturate+brightness), Splay (two radial gradient light catches), Refraction (inset top-edge highlight), Depression (inset bottom-edge shadow), Depth (external layered drop shadows).
+3. **Use dark navy bases, not white-tinted bases.** `rgba(18,24,46,…)` not `rgba(255,255,255,…)`. White-tinted bases produce grey panels — the white shimmer comes from the splay gradient, not the base color.
+4. **The gradient canvas must always be visible through panels.** If a component looks flat or solid, its backdrop-filter blur is missing or the base opacity is too high.
+5. **Backdrop-filter is required on all glass elements.** Without it, the glass effect is broken — the panel just looks like a semi-transparent colored div with no blur.
+6. **Borders must be hairline and light.** Use `1px solid rgba(255,255,255,0.08–0.16)` — never a dark border or a thick border on glass surfaces.
+7. **Accent colors are not muted away.** Badges, active states, and primary buttons use bright opaque liquid surfaces, not low-contrast glass.
+8. **Test backdrop-filter support.** Use `@supports (backdrop-filter: blur(1px))` and provide a slightly more opaque fallback (`rgba(10,14,30,0.92)`) for browsers that don't support it.
 
 ```css
 @supports not (backdrop-filter: blur(1px)) {
   .glass,
   .glass-raised,
   .glass-heavy {
-    background: rgba(10, 14, 30, 0.85);
+    background: rgba(10, 14, 30, 0.88);
   }
 }
 ```

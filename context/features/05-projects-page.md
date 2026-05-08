@@ -1,6 +1,6 @@
 ## goals
 
-Build `/projects` screen using `shadcn/ui` component with no api calls or presistence yet.
+Build `/projects` screen using `shadcn/ui` component with no api calls or persistence yet.
 
 Project cards should navigate into a project detail view where credentials are shown inside the selected project context.
 
@@ -9,4 +9,4 @@ Project cards should navigate into a project detail view where credentials are s
 - install shadcn component only the components that we need
 - dont change the style from `component/ui/*`
 - customize the components only with `className`
-- dont you ever usinf `style={{}}` and use `cn()` function if needed
+- dont you ever using `style={{}}` and use `cn()` function if needed

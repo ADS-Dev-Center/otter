@@ -115,7 +115,7 @@ export function ProjectCredentialsAccordion({
 
                     return (
                       <div
-                        key={credential.name}
+                        key={`${credential.name}-${credential.type}`}
                         className="glass rounded-2xl p-4 transition-colors hover:glass-raised"
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -167,10 +167,12 @@ export function ProjectCredentialsAccordion({
                         </p>
 
                         <div className="mt-4 flex flex-wrap items-center gap-2 text-[10px] text-(--text-muted)">
-                          <span className="inline-flex items-center gap-1 rounded-full border border-(--glass-border-subtle) px-2 py-1">
-                            <Tag weight="duotone" size={12} />
-                            {credential.tags.join(", ")}
-                          </span>
+                          {Array.isArray(credential.tags) && credential.tags.length > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-(--glass-border-subtle) px-2 py-1">
+                              <Tag weight="duotone" size={12} />
+                              {credential.tags.join(", ")}
+                            </span>
+                          )}
                           <span className="inline-flex items-center gap-1 rounded-full border border-(--glass-border-subtle) px-2 py-1">
                             <CalendarBlank weight="duotone" size={12} />
                             Updated {credential.updated}
