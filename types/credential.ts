@@ -11,6 +11,7 @@ export interface CredentialFieldWithValue extends CredentialField {
 
 export interface Credential {
   id: string;
+  slug: string;
   name: string;
   environment: string;
   projectId: string;

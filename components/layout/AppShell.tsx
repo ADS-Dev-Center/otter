@@ -10,7 +10,6 @@ import {
 } from "@/lib/divisions";
 import {
   SidebarSimple,
-  ShieldChevron,
   SquaresFour,
   FolderLock,
   UsersThree,
@@ -18,6 +17,7 @@ import {
   GearSix,
   Lifebuoy,
 } from "@phosphor-icons/react";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import { Separator } from "@/components/ui/separator";
@@ -102,8 +102,14 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
         ) : (
           <aside className="panel-rail flex h-full w-14 flex-col items-center p-2">
-            <div className="mb-2 flex size-10 items-center justify-center rounded-full bg-(--accent-primary)">
-              <ShieldChevron weight="duotone" size={20} color="white" />
+            <div className="liquid-button mb-2 flex size-10 items-center justify-center rounded-full p-1.5">
+              <Image
+                src="/logo.png"
+                alt="Otter logo"
+                width={28}
+                height={28}
+                className="size-full object-contain"
+              />
             </div>
             <button
               type="button"

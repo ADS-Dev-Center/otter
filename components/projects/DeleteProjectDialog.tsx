@@ -12,6 +12,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
 import type { Project } from "@/types/project";
 
 interface DeleteProjectDialogProps {
@@ -29,6 +30,7 @@ export function DeleteProjectDialog({
 }: DeleteProjectDialogProps) {
   const [error, setError] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmSlug, setConfirmSlug] = useState("");
 
   async function handleDelete() {
     if (!project) return;
@@ -65,7 +67,10 @@ export function DeleteProjectDialog({
     <AlertDialog
       open={open}
       onOpenChange={(o) => {
-        if (!o) setError("");
+        if (!o) {
+          setError("");
+          setConfirmSlug("");
+        }
         onOpenChange(o);
       }}
     >
@@ -75,14 +80,27 @@ export function DeleteProjectDialog({
             Delete Project
           </AlertDialogTitle>
           <AlertDialogDescription className="text-(--text-muted)">
-            Are you sure you want to delete{" "}
-            <span className="font-semibold text-(--text-primary)">
-              {project?.name}
-            </span>
-            ? This action cannot be undone and will remove all credentials
+            This action cannot be undone and will remove all credentials
             associated with this project.
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-(--text-subtle)">
+            Type{" "}
+            <span className="font-semibold text-(--text-primary) font-mono">
+              {project?.slug}
+            </span>{" "}
+            to confirm
+          </label>
+          <Input
+            value={confirmSlug}
+            onChange={(e) => setConfirmSlug(e.target.value)}
+            placeholder={project?.slug ?? ""}
+            className="glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary)"
+            autoFocus
+          />
+        </div>
 
         {error && <p className="text-xs text-(--state-error) px-1">{error}</p>}
 
@@ -91,12 +109,12 @@ export function DeleteProjectDialog({
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction
-            className="rounded-lg bg-[rgba(240,68,56,0.18)] border border-[rgba(240,68,56,0.36)] text-(--state-error) hover:bg-[rgba(240,68,56,0.28)]"
+            className="rounded-lg bg-[rgba(240,68,56,0.18)] border border-[rgba(240,68,56,0.36)] text-(--state-error) hover:bg-[rgba(240,68,56,0.28)] disabled:opacity-40"
             onClick={(e) => {
               e.preventDefault();
               handleDelete();
             }}
-            disabled={isDeleting}
+            disabled={isDeleting || confirmSlug !== project?.slug}
           >
             {isDeleting ? "Deleting…" : "Delete Project"}
           </AlertDialogAction>

@@ -13,13 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   createProjectFormSchema,
@@ -45,16 +38,11 @@ export function CreateProjectDialog({
   const {
     register,
     handleSubmit,
-    setValue,
-    watch,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<CreateProjectFormInput>({
     resolver: zodResolver(createProjectFormSchema),
-    defaultValues: { environment: "development" },
   });
-
-  const environment = watch("environment");
 
   async function onSubmit(data: CreateProjectFormInput) {
     setServerError("");
@@ -75,7 +63,9 @@ export function CreateProjectDialog({
       try {
         json = (await res.json()) as typeof json;
       } catch {
-        setServerError("Unexpected server response. Please try again.");
+        const msg = "Unexpected server response. Please try again.";
+        setServerError(msg);
+        toast.error("Failed to create project", { description: msg });
         return;
       }
 
@@ -94,9 +84,7 @@ export function CreateProjectDialog({
       reset();
       onOpenChange(false);
       onCreated(json.data);
-      toast.success("Project created", {
-        description: json.data.name,
-      });
+      toast.success("Project created", { description: json.data.name });
     } catch {
       const msg = "Network error. Please check your connection and try again.";
       setServerError(msg);
@@ -149,30 +137,6 @@ export function CreateProjectDialog({
                 {errors.description.message}
               </p>
             )}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-(--text-subtle)">
-              Default Environment
-            </label>
-            <Select
-              value={environment}
-              onValueChange={(v) =>
-                setValue("environment", v as CreateProjectFormInput["environment"], {
-                  shouldValidate: true,
-                })
-              }
-            >
-              <SelectTrigger className="glass rounded-lg border-(--glass-border) text-(--text-primary) focus:ring-[rgba(77,142,255,0.4)] focus:border-(--accent-primary) bg-transparent">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="panel-dropdown">
-                <SelectItem value="development" className="text-(--text-primary) focus:bg-(--glass-bg-hover)">Development</SelectItem>
-                <SelectItem value="staging" className="text-(--text-primary) focus:bg-(--glass-bg-hover)">Staging</SelectItem>
-                <SelectItem value="production" className="text-(--text-primary) focus:bg-(--glass-bg-hover)">Production</SelectItem>
-                <SelectItem value="shared" className="text-(--text-primary) focus:bg-(--glass-bg-hover)">Shared</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {serverError && (

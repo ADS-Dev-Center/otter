@@ -19,13 +19,13 @@ const ENV_LABEL: Record<Env, string> = {
 };
 
 interface ProjectCredentialsListProps {
-  projectId: string;
+  projectSlug: string;
   initialCredentials: CredentialWithProject[];
   canEdit: boolean;
 }
 
 export function ProjectCredentialsList({
-  projectId,
+  projectSlug,
   initialCredentials,
   canEdit,
 }: ProjectCredentialsListProps) {
@@ -83,7 +83,7 @@ export function ProjectCredentialsList({
         </p>
         {canEdit && (
           <Button
-            onClick={() => router.push(`/projects/${projectId}/credentials/new`)}
+            onClick={() => router.push(`/projects/${projectSlug}/credentials/new`)}
             className="mt-2 bg-(--button-liquid-bg) hover:bg-(--button-liquid-bg-hover) border border-(--button-liquid-border) text-(--text-primary)"
           >
             <Plus weight="duotone" size={14} className="mr-1.5" />
@@ -111,7 +111,7 @@ export function ProjectCredentialsList({
                   credential={credential}
                   canEdit={canEdit}
                   onDelete={setDeleteTarget}
-                  editUrl={`/projects/${projectId}/credentials/${credential.id}/edit`}
+                  editUrl={`/projects/${projectSlug}/credentials/${credential.slug}/edit`}
                   revealedFields={revealedMap[credential.id] ?? null}
                   loading={loadingIds.has(credential.id)}
                 />
@@ -125,6 +125,7 @@ export function ProjectCredentialsList({
         <DeleteCredentialDialog
           open={true}
           credentialName={deleteTarget.name}
+          credentialSlug={deleteTarget.slug}
           credentialId={deleteTarget.id}
           onClose={() => setDeleteTarget(null)}
           onDeleted={(id) => setCredentials((prev) => prev.filter((c) => c.id !== id))}

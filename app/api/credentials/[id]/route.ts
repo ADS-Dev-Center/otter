@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserDivisionIds, getUserRoleInDivision } from "@/lib/auth";
 import { encryptToString } from "@/lib/crypto";
 import { updateCredentialSchema } from "@/lib/validations/credential";
+import { writeAuditLog } from "@/lib/audit";
 
 async function resolveCredential(id: string, userId: string) {
   const credential = await prisma.credential.findUnique({
@@ -118,13 +119,14 @@ export async function PUT(
     });
 
     await Promise.all([
-      prisma.auditLog.create({
-        data: {
-          actorId: userId,
-          action: "CREDENTIAL_UPDATE",
-          credentialId: id,
-          divisionId,
-        },
+      writeAuditLog({
+        actorId: userId,
+        action: "CREDENTIAL_UPDATE",
+        resourceType: "CREDENTIAL",
+        resourceId: id,
+        resourceName: credential.name,
+        credentialId: id,
+        divisionId: divisionId ?? undefined,
       }),
       prisma.project.update({
         where: { id: credential.projectId },
@@ -171,14 +173,15 @@ export async function DELETE(
   }
 
   try {
-    await prisma.auditLog.create({
-      data: {
-        actorId: userId,
-        action: "CREDENTIAL_DELETE",
-        credentialId: id,
-        divisionId,
-        metadata: { name: credential.name },
-      },
+    await writeAuditLog({
+      actorId: userId,
+      action: "CREDENTIAL_DELETE",
+      resourceType: "CREDENTIAL",
+      resourceId: id,
+      resourceName: credential.name,
+      credentialId: id,
+      divisionId: divisionId ?? undefined,
+      metadata: { changeDescription: `Deleted credential "${credential.name}"` },
     });
 
     await prisma.credential.delete({ where: { id } });

@@ -1,5 +1,6 @@
 export interface MockMember {
   initials: string;
+  imageUrl?: string | null;
   gradientFrom: string;
   gradientTo: string;
 }

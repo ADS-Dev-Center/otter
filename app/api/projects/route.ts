@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserDivisionIds, getUserRoleInDivision } from "@/lib/auth";
 import { createProjectSchema } from "@/lib/validations/project";
+import { toSlug } from "@/lib/slug";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function GET(req: Request) {
   const { userId } = await auth();
@@ -93,16 +95,58 @@ export async function POST(req: Request) {
     );
   }
 
+  const slug = toSlug(result.data.name);
+
   try {
-    const project = await prisma.project.create({
-      data: {
-        name: result.data.name,
-        description: result.data.description,
-        environment: result.data.environment,
-        divisionId: result.data.divisionId,
-      },
-      include: { _count: { select: { credentials: true } } },
+    const existing = await prisma.project.findUnique({ where: { slug } });
+    if (existing) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "CONFLICT",
+            message: "A project with this name already exists",
+          },
+        },
+        { status: 409 },
+      );
+    }
+
+    let project;
+    try {
+      project = await prisma.project.create({
+        data: {
+          slug,
+          name: result.data.name,
+          description: result.data.description,
+          divisionId: result.data.divisionId,
+        },
+        include: { _count: { select: { credentials: true } } },
+      });
+    } catch (e) {
+      // Handle unique constraint race (slug already created between check and create)
+      if ((e as any)?.code === "P2002") {
+        return NextResponse.json(
+          {
+            error: {
+              code: "CONFLICT",
+              message: "A project with this name already exists",
+            },
+          },
+          { status: 409 },
+        );
+      }
+      throw e;
+    }
+
+    await writeAuditLog({
+      actorId: userId,
+      action: "PROJECT_CREATE",
+      resourceType: "PROJECT",
+      resourceId: project.id,
+      resourceName: project.name,
+      divisionId: project.divisionId,
     });
+
     return NextResponse.json({ data: project }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/projects]", err);

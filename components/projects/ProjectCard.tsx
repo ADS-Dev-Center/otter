@@ -5,7 +5,6 @@ import {
   FolderLock,
   Key,
   UsersThree,
-  CaretRight,
   DotsThreeVertical,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +19,6 @@ import { cn } from "@/lib/utils";
 import type { Project } from "@/types/project";
 
 interface DivisionPalette {
-  accentBarClass: string;
   iconBgClass: string;
   iconColor: string;
   badgeClass: string;
@@ -49,12 +47,10 @@ export function ProjectCard({
 
   return (
     <div className="glass rounded-xl flex flex-col overflow-hidden group relative">
-      <div className={cn("h-0.5 w-full shrink-0", palette.accentBarClass)} />
-
       <div className="p-5 flex flex-col gap-4 flex-1">
         <div className="flex items-start justify-between gap-3">
           <Link
-            href={`/projects/${project.id}`}
+            href={`/projects/${project.slug}`}
             className="flex items-center gap-3 flex-1 min-w-0"
           >
             <div
@@ -123,14 +119,6 @@ export function ProjectCard({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            <Link href={`/projects/${project.id}`}>
-              <CaretRight
-                weight="duotone"
-                size={16}
-                color="var(--text-muted)"
-                className="opacity-0 group-hover:opacity-100 transition-opacity duration-100"
-              />
-            </Link>
           </div>
         </div>
 
@@ -167,11 +155,10 @@ export function ProjectCard({
             })}
           </span>
           <Link
-            href={`/projects/${project.id}`}
+            href={`/projects/${project.slug}`}
             className="inline-flex items-center gap-1 rounded-lg border border-(--glass-border-subtle) bg-(--glass-bg) px-2.5 py-1 text-xs text-(--text-subtle) transition-colors group-hover:bg-(--glass-bg-hover) group-hover:text-(--text-primary)"
           >
             Open
-            <CaretRight weight="duotone" size={14} />
           </Link>
         </div>
       </div>

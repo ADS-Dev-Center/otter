@@ -1,24 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import { EditProfileDialog } from "@/components/settings/EditProfileDialog";
 import {
-  BellRinging,
   Buildings,
-  CheckCircle,
-  Database,
-  Fingerprint,
   GearSix,
-  Key,
-  LockKey,
   PencilSimple,
   Plus,
-  ShieldCheck,
   Trash,
   UsersThree,
-  Waveform,
-  WarningCircle,
 } from "@phosphor-icons/react";
-import { ACTIVE_DIVISION_STORAGE_KEY, DIVISION_CONTEXT_EVENT, type Division } from "@/lib/divisions";
+import {
+  ACTIVE_DIVISION_STORAGE_KEY,
+  DIVISION_CONTEXT_EVENT,
+  type Division,
+} from "@/lib/divisions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,11 +36,43 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type DivisionRow = Division & { role: string };
 
+const ROLE_LABEL: Record<string, { label: string; color: string }> = {
+  DIVISION_OWNER: { label: "Owner", color: "var(--accent-primary)" },
+  DIVISION_ADMIN: { label: "Admin", color: "var(--accent-amber)" },
+  SUPER_ADMIN: { label: "Super Admin", color: "var(--accent-purple)" },
+  MEMBER: { label: "Member", color: "var(--text-muted)" },
+};
+
+function RoleBadge({ role }: { role: string }) {
+  const { label, color } = ROLE_LABEL[role] ?? {
+    label: role,
+    color: "var(--text-muted)",
+  };
+  return (
+    <span style={{ color }} className="font-medium">
+      {label}
+    </span>
+  );
+}
+
+type ProfileData = {
+  name: string | null;
+  email: string | null;
+  imageUrl: string | null;
+  createdAt: string | null;
+};
+
 export default function SettingsPage() {
+  const { user: clerkUser } = useUser();
+
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+
   const [divisions, setDivisions] = useState<DivisionRow[]>([]);
   const [activeDivisionId, setActiveDivisionId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -55,7 +84,9 @@ export default function SettingsPage() {
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   // delete state
-  const [deletingDivision, setDeletingDivision] = useState<DivisionRow | null>(null);
+  const [deletingDivision, setDeletingDivision] = useState<DivisionRow | null>(
+    null,
+  );
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -65,6 +96,25 @@ export default function SettingsPage() {
   const [createName, setCreateName] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState("");
+
+  const fetchProfile = useCallback(() => {
+    fetch("/api/profile")
+      .then((r) => {
+        if (!r.ok) {
+          setProfile(null);
+          throw new Error(`Profile fetch failed: ${r.status}`);
+        }
+        return r.json();
+      })
+      .then((d) => setProfile(d as ProfileData))
+      .catch(() => {
+        setProfile(null);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   const fetchDivisions = useCallback(async () => {
     try {
@@ -91,7 +141,6 @@ export default function SettingsPage() {
     void fetchDivisions();
   }, [fetchDivisions]);
 
-  // focus rename input when editing starts
   useEffect(() => {
     if (renamingId) {
       setTimeout(() => renameInputRef.current?.focus(), 0);
@@ -100,7 +149,26 @@ export default function SettingsPage() {
 
   const activeDivision = divisions.find((d) => d.id === activeDivisionId);
 
-  // ── rename ────────────────────────────────────────────────────────────────
+  // ── profile helpers ────────────────────────────────────────────────────────
+  const displayName =
+    profile?.name ?? clerkUser?.fullName ?? clerkUser?.username ?? "—";
+  const displayEmail =
+    profile?.email ?? clerkUser?.primaryEmailAddress?.emailAddress ?? "—";
+  const displayImageUrl = profile?.imageUrl ?? clerkUser?.imageUrl ?? null;
+  const memberSince = (() => {
+    const raw =
+      profile?.createdAt ??
+      (clerkUser?.createdAt
+        ? new Date(clerkUser.createdAt).toISOString()
+        : null);
+    if (!raw) return "—";
+    return new Date(raw).toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+    });
+  })();
+
+  // ── rename ─────────────────────────────────────────────────────────────────
   function startRename(division: DivisionRow) {
     setRenamingId(division.id);
     setRenameValue(division.name);
@@ -116,7 +184,11 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: trimmed }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        toast.error("Failed to rename division");
+        return;
+      }
+      toast.success("Division renamed", { description: trimmed });
       await fetchDivisions();
       dispatchDivisionChange(activeDivisionId);
     } finally {
@@ -125,19 +197,24 @@ export default function SettingsPage() {
     }
   }
 
-  // ── delete ────────────────────────────────────────────────────────────────
+  // ── delete ─────────────────────────────────────────────────────────────────
   async function confirmDelete() {
     if (!deletingDivision) return;
     setDeleteLoading(true);
     setDeleteError("");
+    const deletedName = deletingDivision.name;
     try {
-      const res = await fetch(`/api/divisions/${deletingDivision.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/divisions/${deletingDivision.id}`, {
+        method: "DELETE",
+      });
       const json = (await res.json()) as { error?: { message: string } };
       if (!res.ok) {
         setDeleteError(json.error?.message ?? "Failed to delete division");
+        toast.error("Failed to delete division", {
+          description: json.error?.message,
+        });
         return;
       }
-      // If deleted division was active, switch to first remaining
       if (deletingDivision.id === activeDivisionId) {
         const remaining = divisions.filter((d) => d.id !== deletingDivision.id);
         const nextId = remaining[0]?.id ?? "";
@@ -148,13 +225,14 @@ export default function SettingsPage() {
       }
       setDeletingDivision(null);
       setDeleteConfirmName("");
+      toast.success("Division deleted", { description: deletedName });
       await fetchDivisions();
     } finally {
       setDeleteLoading(false);
     }
   }
 
-  // ── create ────────────────────────────────────────────────────────────────
+  // ── create ─────────────────────────────────────────────────────────────────
   async function handleCreate() {
     const trimmed = createName.trim();
     if (!trimmed) return;
@@ -168,15 +246,19 @@ export default function SettingsPage() {
       });
       if (!res.ok) {
         const json = (await res.json()) as { error?: { message?: string } };
-        setCreateError(json.error?.message ?? "Failed to create division");
+        const msg = json.error?.message ?? "Failed to create division";
+        setCreateError(msg);
+        toast.error("Failed to create division", { description: msg });
         return;
       }
       setIsCreateOpen(false);
       setCreateName("");
+      toast.success("Division created", { description: trimmed });
       await fetchDivisions();
       dispatchDivisionChange(activeDivisionId);
     } catch {
       setCreateError("An unexpected error occurred");
+      toast.error("Failed to create division");
     } finally {
       setCreateLoading(false);
     }
@@ -185,7 +267,9 @@ export default function SettingsPage() {
   function dispatchDivisionChange(id: string) {
     if (typeof window === "undefined") return;
     window.dispatchEvent(
-      new CustomEvent(DIVISION_CONTEXT_EVENT, { detail: { activeDivisionId: id } }),
+      new CustomEvent(DIVISION_CONTEXT_EVENT, {
+        detail: { activeDivisionId: id },
+      }),
     );
   }
 
@@ -194,17 +278,60 @@ export default function SettingsPage() {
       <header className="flex flex-col gap-2">
         <div className="flex items-center gap-2.5">
           <GearSix weight="duotone" size={24} color="var(--accent-primary)" />
-          <h1 className="text-2xl font-bold tracking-tight text-(--text-primary)">Settings</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-(--text-primary)">
+            Settings
+          </h1>
         </div>
         <p className="text-sm text-(--text-muted)">
-          Configure security, division governance, credential policies, and operational controls for Otter.
+          Manage your profile, workspace context, security policy, and division
+          governance.
         </p>
       </header>
+
+      {/* Profile */}
+      <Card className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)">
+        <CardContent className="flex items-center gap-4 py-4">
+          {displayImageUrl ? (
+            <img
+              src={displayImageUrl}
+              alt={displayName}
+              className="size-12 rounded-full object-cover shrink-0 border border-(--glass-border)"
+            />
+          ) : (
+            <div className="size-12 rounded-full flex items-center justify-center shrink-0 bg-(--glass-bg-hover) border border-(--glass-border) text-(--text-subtle) text-lg font-semibold select-none">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="truncate font-semibold text-(--text-primary) leading-snug">
+              {displayName}
+            </p>
+            <p className="truncate text-xs text-(--text-muted) mt-0.5">
+              {displayEmail}
+            </p>
+            <p className="text-xs text-(--text-muted) mt-0.5">
+              Member since{" "}
+              <span className="text-(--text-subtle)">{memberSince}</span>
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setEditProfileOpen(true)}
+            className="shrink-0 h-8 px-3 text-xs border-(--glass-border) text-(--text-subtle) hover:text-(--text-primary) hover:bg-(--glass-bg-hover)"
+          >
+            Edit Profile
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Workspace context */}
       <Card className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)">
         <CardHeader>
-          <CardTitle className="text-(--text-primary)">Workspace Context</CardTitle>
+          <CardTitle className="text-(--text-primary)">
+            Workspace Context
+          </CardTitle>
           <CardDescription className="text-(--text-muted)">
             Otter always scopes data to one active division at a time.
           </CardDescription>
@@ -222,147 +349,37 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) bg-(--glass-bg) px-3 py-2">
             <span className="text-(--text-muted)">Division memberships</span>
             <span className="font-semibold text-(--text-primary)">
-              {loading ? "—" : `${divisions.length} division${divisions.length !== 1 ? "s" : ""}`}
+              {loading
+                ? "—"
+                : `${divisions.length} division${divisions.length !== 1 ? "s" : ""}`}
             </span>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-(--text-primary)">
-              <ShieldCheck weight="duotone" size={18} color="var(--accent-primary)" />
-              Security & Authentication
-            </CardTitle>
-            <CardDescription className="text-(--text-muted)">
-              Protect sessions and enforce MFA for all workspace access.
-            </CardDescription>
-            <CardAction><Badge>Protected</Badge></CardAction>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-xs">
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="flex items-center gap-2 text-(--text-subtle)">
-                <Fingerprint weight="duotone" size={14} /> OTP enforcement
-              </span>
-              <Badge variant="secondary">Enabled</Badge>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="flex items-center gap-2 text-(--text-subtle)">
-                <LockKey weight="duotone" size={14} /> Session duration
-              </span>
-              <span className="font-medium text-(--text-primary)">8 hours</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="flex items-center gap-2 text-(--text-subtle)">
-                <WarningCircle weight="duotone" size={14} /> Suspicious login alerts
-              </span>
-              <Badge variant="secondary">Active</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-(--text-primary)">
-              <Key weight="duotone" size={18} color="var(--accent-teal)" />
-              Vault Policy
-            </CardTitle>
-            <CardDescription className="text-(--text-muted)">
-              Define credential handling and reveal policy for secure operations.
-            </CardDescription>
-            <CardAction><Badge variant="secondary">AES-256-GCM</Badge></CardAction>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-xs">
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="text-(--text-subtle)">Encryption at rest</span>
-              <span className="font-medium text-(--text-primary)">Mandatory</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="text-(--text-subtle)">Reveal timeout</span>
-              <span className="font-medium text-(--text-primary)">30 seconds</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="text-(--text-subtle)">Copy protection</span>
-              <Badge variant="secondary">Enabled</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-(--text-primary)">
-              <Waveform weight="duotone" size={18} color="var(--accent-amber)" />
-              Audit & Compliance
-            </CardTitle>
-            <CardDescription className="text-(--text-muted)">
-              Track credential access and changes across divisions.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-xs">
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="text-(--text-subtle)">Audit retention</span>
-              <span className="font-medium text-(--text-primary)">180 days</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="text-(--text-subtle)">Reveal activity log</span>
-              <Badge variant="secondary">On</Badge>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="text-(--text-subtle)">Export reports</span>
-              <Badge variant="outline">Coming soon</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-(--text-primary)">
-              <BellRinging weight="duotone" size={18} color="var(--accent-purple)" />
-              Notifications & Integrations
-            </CardTitle>
-            <CardDescription className="text-(--text-muted)">
-              Route operational events to your incident and collaboration tools.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-xs">
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="flex items-center gap-2 text-(--text-subtle)">
-                <CheckCircle weight="duotone" size={14} color="var(--state-success)" />
-                Clerk auth integration
-              </span>
-              <Badge variant="secondary">Connected</Badge>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="flex items-center gap-2 text-(--text-subtle)">
-                <Database weight="duotone" size={14} />
-                Prisma/Postgres health
-              </span>
-              <Badge variant="secondary">Healthy</Badge>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-(--glass-border-subtle) px-3 py-2">
-              <span className="text-(--text-subtle)">Slack / Webhook alerts</span>
-              <Badge variant="outline">Coming soon</Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Division management */}
       <Card className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-(--text-primary)">
-            <Buildings weight="duotone" size={18} color="var(--accent-primary)" />
+            <Buildings
+              weight="duotone"
+              size={18}
+              color="var(--accent-primary)"
+            />
             Division Management
           </CardTitle>
           <CardDescription className="text-(--text-muted)">
-            Create, rename, or delete your divisions. You must keep at least one division.
+            Create, rename, or delete your divisions. You must keep at least one
+            division.
           </CardDescription>
           <CardAction>
             <Button
               type="button"
               size="sm"
-              onClick={() => { setCreateName(""); setIsCreateOpen(true); }}
+              onClick={() => {
+                setCreateName("");
+                setIsCreateOpen(true);
+              }}
               className="h-8 gap-1.5 px-3 text-xs bg-(--accent-primary) hover:opacity-90 text-white"
             >
               <Plus weight="bold" size={14} />
@@ -374,111 +391,170 @@ export default function SettingsPage() {
           {loading && (
             <div className="flex flex-col gap-2">
               {[1, 2].map((i) => (
-                <div key={i} className="h-14 rounded-lg bg-(--glass-bg-hover) animate-pulse" />
+                <div
+                  key={i}
+                  className="h-14 rounded-lg bg-(--glass-bg-hover) animate-pulse"
+                />
               ))}
             </div>
           )}
 
           {!loading && divisions.length === 0 && (
-            <p className="text-sm text-(--text-muted) py-2">No divisions found.</p>
+            <p className="text-sm text-(--text-muted) py-2">
+              No divisions found.
+            </p>
           )}
 
-          {!loading && divisions.map((division, index) => {
-            const isActive = division.id === activeDivisionId;
-            const isRenaming = renamingId === division.id;
+          {!loading && divisions.length === 1 && (
+            <p className="text-xs text-(--text-muted) bg-(--glass-bg-hover) rounded-lg px-3 py-2">
+              You need at least two divisions before you can delete one.
+            </p>
+          )}
 
-            return (
-              <div key={division.id} className="flex flex-col gap-3">
-                <div
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border border-(--glass-border-subtle) px-3 py-2.5",
-                    isActive && "bg-(--glass-bg-active)",
-                  )}
-                >
-                  <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", division.iconBgClass)}>
-                    <Buildings weight="duotone" size={16} color={division.iconColor} />
-                  </div>
+          {!loading &&
+            divisions.map((division, index) => {
+              const isActive = division.id === activeDivisionId;
+              const isRenaming = renamingId === division.id;
 
-                  <div className="flex-1 min-w-0">
-                    {isRenaming ? (
-                      <Input
-                        ref={renameInputRef}
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") void commitRename(division.id);
-                          if (e.key === "Escape") setRenamingId(null);
-                        }}
-                        disabled={renameLoading}
-                        className="h-7 text-sm border-(--glass-border) bg-(--glass-bg) text-(--text-primary) px-2"
-                      />
-                    ) : (
-                      <p className="truncate text-sm font-semibold text-(--text-primary)">
-                        {division.name}
-                      </p>
+              return (
+                <div key={division.id} className="flex flex-col gap-3">
+                  <div
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg border border-(--glass-border-subtle) px-3 py-2.5",
+                      isActive && "bg-(--glass-bg-active)",
                     )}
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-(--text-muted)">
-                      <UsersThree weight="duotone" size={12} />
-                      <span>{division.memberCount} {division.memberCount === 1 ? "member" : "members"}</span>
-                      {division.role === "DIVISION_OWNER" && (
-                        <span className="text-(--accent-primary)">· Owner</span>
+                  >
+                    <div
+                      className={cn(
+                        "size-8 rounded-lg flex items-center justify-center shrink-0",
+                        division.iconBgClass,
                       )}
+                    >
+                      <Buildings
+                        weight="duotone"
+                        size={16}
+                        color={division.iconColor}
+                      />
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {isActive && <Badge variant="secondary" className="text-[10px]">Active</Badge>}
+                    <div className="flex-1 min-w-0">
+                      {isRenaming ? (
+                        <Input
+                          ref={renameInputRef}
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter")
+                              void commitRename(division.id);
+                            if (e.key === "Escape") setRenamingId(null);
+                          }}
+                          disabled={renameLoading}
+                          className="h-7 text-sm glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) px-2 focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary)"
+                        />
+                      ) : (
+                        <p className="truncate text-sm font-semibold text-(--text-primary)">
+                          {division.name}
+                        </p>
+                      )}
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-(--text-muted)">
+                        <UsersThree weight="duotone" size={12} />
+                        <span>
+                          {division.memberCount}{" "}
+                          {division.memberCount === 1 ? "member" : "members"}
+                        </span>
+                        <span className="text-(--glass-border)">·</span>
+                        <RoleBadge role={division.role} />
+                      </div>
+                    </div>
 
-                    {division.role === "DIVISION_OWNER" && !isRenaming && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => startRename(division)}
-                          title="Rename"
-                          className="inline-flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-(--glass-bg-hover) text-(--text-muted) hover:text-(--text-primary)"
-                        >
-                          <PencilSimple weight="duotone" size={14} />
-                        </button>
-                        {divisions.length > 1 && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isActive && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          Active
+                        </Badge>
+                      )}
+
+                      {division.role === "DIVISION_OWNER" && !isRenaming && (
+                        <>
                           <button
                             type="button"
-                            onClick={() => { setDeleteError(""); setDeleteConfirmName(""); setDeletingDivision(division); }}
-                            title="Delete"
-                            className="inline-flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-[rgba(240,68,56,0.12)] text-(--text-muted) hover:text-(--state-error)"
+                            onClick={() => startRename(division)}
+                            title="Rename"
+                            className="inline-flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-(--glass-bg-hover) text-(--text-muted) hover:text-(--text-primary)"
+                          >
+                            <PencilSimple weight="duotone" size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeleteError("");
+                              setDeleteConfirmName("");
+                              setDeletingDivision(division);
+                            }}
+                            disabled={divisions.length <= 1}
+                            title={
+                              divisions.length <= 1
+                                ? "Cannot delete the only division"
+                                : "Delete"
+                            }
+                            className="inline-flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-[rgba(240,68,56,0.12)] text-(--text-muted) hover:text-(--state-error) disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-(--text-muted)"
                           >
                             <Trash weight="duotone" size={14} />
                           </button>
-                        )}
-                      </>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
+                  {index < divisions.length - 1 && (
+                    <Separator className="bg-(--glass-border-subtle)" />
+                  )}
                 </div>
-                {index < divisions.length - 1 && (
-                  <Separator className="bg-(--glass-border-subtle)" />
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
         </CardContent>
       </Card>
 
+      <EditProfileDialog
+        open={editProfileOpen}
+        onOpenChange={setEditProfileOpen}
+        currentName={displayName}
+        currentEmail={displayEmail}
+        currentImageUrl={displayImageUrl}
+        onSaved={fetchProfile}
+      />
+
       {/* Create dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) { setCreateName(""); setCreateError(""); } }}>
+      <Dialog
+        open={isCreateOpen}
+        onOpenChange={(open) => {
+          setIsCreateOpen(open);
+          if (!open) {
+            setCreateName("");
+            setCreateError("");
+          }
+        }}
+      >
         <DialogContent className="glass-heavy max-w-md rounded-2xl border-(--glass-border) bg-(--glass-bg-raised) p-5 text-(--text-primary)">
           <DialogHeader>
-            <DialogTitle className="text-lg text-(--text-primary)">New Division</DialogTitle>
+            <DialogTitle className="text-lg text-(--text-primary)">
+              New Division
+            </DialogTitle>
             <DialogDescription className="text-(--text-muted)">
               Create a new division to group projects and credentials.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-(--text-subtle)">Division name</label>
+            <label className="text-xs font-medium text-(--text-subtle)">
+              Division name
+            </label>
             <Input
               value={createName}
               onChange={(e) => setCreateName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && createName.trim()) void handleCreate(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && createName.trim()) void handleCreate();
+              }}
               placeholder="e.g. Security Division"
-              className="h-10 border-(--glass-border) bg-(--glass-bg) text-(--text-primary) placeholder:text-(--text-muted)"
+              className="glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary)"
               autoFocus
             />
           </div>
@@ -488,12 +564,23 @@ export default function SettingsPage() {
             </p>
           )}
           <DialogFooter className="gap-2">
-            <Button type="button" variant="ghost" onClick={() => { setIsCreateOpen(false); setCreateError(""); }}
-              className="text-(--text-subtle) hover:bg-(--glass-bg-hover) hover:text-(--text-primary)">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setIsCreateOpen(false);
+                setCreateError("");
+              }}
+              className="text-(--text-subtle) hover:bg-(--glass-bg-hover) hover:text-(--text-primary)"
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={() => void handleCreate()}
-              disabled={!createName.trim() || createLoading} className="rounded-lg">
+            <Button
+              type="button"
+              onClick={() => void handleCreate()}
+              disabled={!createName.trim() || createLoading}
+              className="rounded-lg"
+            >
               {createLoading ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
@@ -501,13 +588,26 @@ export default function SettingsPage() {
       </Dialog>
 
       {/* Delete confirmation dialog */}
-      <Dialog open={!!deletingDivision} onOpenChange={(open) => { if (!open) { setDeletingDivision(null); setDeleteConfirmName(""); setDeleteError(""); } }}>
+      <Dialog
+        open={!!deletingDivision}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeletingDivision(null);
+            setDeleteConfirmName("");
+            setDeleteError("");
+          }
+        }}
+      >
         <DialogContent className="glass-heavy max-w-md rounded-2xl border-(--glass-border) bg-(--glass-bg-raised) p-5 text-(--text-primary)">
           <DialogHeader>
-            <DialogTitle className="text-lg text-(--state-error)">Delete Division</DialogTitle>
+            <DialogTitle className="text-lg text-(--state-error)">
+              Delete Division
+            </DialogTitle>
             <DialogDescription className="text-(--text-muted)">
               This will permanently remove{" "}
-              <span className="font-semibold text-(--text-primary)">{deletingDivision?.name}</span>{" "}
+              <span className="font-semibold text-(--text-primary)">
+                {deletingDivision?.name}
+              </span>{" "}
               and all its data. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
@@ -524,12 +624,15 @@ export default function SettingsPage() {
               value={deleteConfirmName}
               onChange={(e) => setDeleteConfirmName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && deleteConfirmName === deletingDivision?.name) {
+                if (
+                  e.key === "Enter" &&
+                  deleteConfirmName === deletingDivision?.name
+                ) {
                   void confirmDelete();
                 }
               }}
               placeholder={deletingDivision?.name}
-              className="h-10 border-(--glass-border) bg-(--glass-bg) text-(--text-primary) placeholder:text-(--text-muted)"
+              className="glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary)"
               autoFocus
             />
           </div>
@@ -541,14 +644,24 @@ export default function SettingsPage() {
           )}
 
           <DialogFooter className="gap-2">
-            <Button type="button" variant="ghost" onClick={() => { setDeletingDivision(null); setDeleteConfirmName(""); setDeleteError(""); }}
-              className="text-(--text-subtle) hover:bg-(--glass-bg-hover) hover:text-(--text-primary)">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setDeletingDivision(null);
+                setDeleteConfirmName("");
+                setDeleteError("");
+              }}
+              className="text-(--text-subtle) hover:bg-(--glass-bg-hover) hover:text-(--text-primary)"
+            >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={() => void confirmDelete()}
-              disabled={deleteLoading || deleteConfirmName !== deletingDivision?.name}
+              disabled={
+                deleteLoading || deleteConfirmName !== deletingDivision?.name
+              }
               className="rounded-lg bg-(--state-error) hover:opacity-90 text-white disabled:opacity-40"
             >
               {deleteLoading ? "Deleting…" : "Delete"}

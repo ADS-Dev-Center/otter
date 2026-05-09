@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getUserDivisionIds, getUserRoleInDivision } from "@/lib/auth";
 import { encryptToString } from "@/lib/crypto";
 import { createCredentialSchema } from "@/lib/validations/credential";
+import { toSlug } from "@/lib/slug";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function GET(req: Request) {
   const { userId } = await auth();
@@ -107,9 +109,22 @@ export async function POST(req: Request) {
     );
   }
 
+  const slug = toSlug(result.data.name);
+
   try {
+    const existing = await prisma.credential.findUnique({
+      where: { projectId_slug: { projectId: result.data.projectId, slug } },
+    });
+    if (existing) {
+      return NextResponse.json(
+        { error: { code: "CONFLICT", message: "A credential with this name already exists in this project" } },
+        { status: 409 },
+      );
+    }
+
     const credential = await prisma.credential.create({
       data: {
+        slug,
         name: result.data.name,
         environment: result.data.environment,
         projectId: result.data.projectId,
@@ -127,13 +142,14 @@ export async function POST(req: Request) {
     });
 
     await Promise.all([
-      prisma.auditLog.create({
-        data: {
-          actorId: userId,
-          action: "CREDENTIAL_CREATE",
-          credentialId: credential.id,
-          divisionId: project.divisionId,
-        },
+      writeAuditLog({
+        actorId: userId,
+        action: "CREDENTIAL_CREATE",
+        resourceType: "CREDENTIAL",
+        resourceId: credential.id,
+        resourceName: credential.name,
+        credentialId: credential.id,
+        divisionId: project.divisionId,
       }),
       prisma.project.update({
         where: { id: result.data.projectId },

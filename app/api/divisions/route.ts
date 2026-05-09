@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createDivisionSchema } from "@/lib/validations/division";
 import { getDivisionPalette } from "@/lib/divisions";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function GET() {
   const { userId } = await auth();
@@ -43,12 +44,14 @@ export async function GET() {
 
             return {
               initials: initials || "??",
+              imageUrl: user.imageUrl ?? null,
               gradientFrom: palette.gradientFrom,
               gradientTo: palette.gradientTo,
             };
           } catch {
             return {
               initials: "??",
+              imageUrl: null,
               gradientFrom: palette.gradientFrom,
               gradientTo: palette.gradientTo,
             };
@@ -85,29 +88,60 @@ export async function POST(req: Request) {
   const body: unknown = await req.json();
   const result = createDivisionSchema.safeParse(body);
   if (!result.success) {
+    const fieldErrors: Record<string, string[]> = {};
+    for (const issue of result.error.issues) {
+      const key = issue.path.join(".") || "_";
+      fieldErrors[key] = fieldErrors[key] || [];
+      fieldErrors[key].push(issue.message);
+    }
+
     return NextResponse.json(
       {
         error: {
           code: "VALIDATION_ERROR",
           message: "Validation failed",
-          fieldErrors: result.error.flatten().fieldErrors,
+          fieldErrors,
         },
       },
       { status: 400 },
     );
   }
 
-  const division = await prisma.division.create({
-    data: {
-      name: result.data.name,
-      memberships: {
-        create: {
-          clerkId: userId,
-          role: "DIVISION_OWNER",
+  let division;
+  try {
+    division = await prisma.division.create({
+      data: {
+        name: result.data.name,
+        memberships: {
+          create: {
+            clerkId: userId,
+            role: "DIVISION_OWNER",
+          },
         },
       },
-    },
-  });
+    });
+  } catch (err) {
+    console.error("[POST /api/divisions] create failed:", err);
+    return NextResponse.json(
+      {
+        error: { code: "INTERNAL_ERROR", message: "Failed to create division" },
+      },
+      { status: 500 },
+    );
+  }
+
+  try {
+    await writeAuditLog({
+      actorId: userId,
+      action: "DIVISION_CREATE",
+      resourceType: "DIVISION",
+      resourceId: division.id,
+      resourceName: division.name,
+      divisionId: division.id,
+    });
+  } catch (err) {
+    console.error("[POST /api/divisions] audit log failed (non-fatal):", err);
+  }
 
   return NextResponse.json({ data: division }, { status: 201 });
 }

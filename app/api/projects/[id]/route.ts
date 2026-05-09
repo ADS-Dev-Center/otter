@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserRoleInDivision } from "@/lib/auth";
 import { updateProjectSchema } from "@/lib/validations/project";
+import { writeAuditLog } from "@/lib/audit";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -62,6 +63,15 @@ export async function PATCH(req: Request, { params }: RouteContext) {
       data: result.data,
     });
 
+    await writeAuditLog({
+      actorId: userId,
+      action: "PROJECT_UPDATE",
+      resourceType: "PROJECT",
+      resourceId: id,
+      resourceName: updated.name,
+      divisionId: project.divisionId,
+    });
+
     return NextResponse.json({ data: updated });
   } catch (err) {
     if (err instanceof SyntaxError) {
@@ -118,6 +128,15 @@ export async function DELETE(_req: Request, { params }: RouteContext) {
   }
 
   try {
+    await writeAuditLog({
+      actorId: userId,
+      action: "PROJECT_DELETE",
+      resourceType: "PROJECT",
+      resourceId: id,
+      resourceName: project.name,
+      divisionId: project.divisionId,
+    });
+
     await prisma.project.delete({ where: { id } });
     return new NextResponse(null, { status: 204 });
   } catch (err) {

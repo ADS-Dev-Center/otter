@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createDivisionSchema } from "@/lib/validations/division";
+import { writeAuditLog } from "@/lib/audit";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -40,9 +41,21 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     );
   }
 
+  const existing = await prisma.division.findUnique({ where: { id }, select: { name: true } });
+
   const division = await prisma.division.update({
     where: { id },
     data: { name: result.data.name },
+  });
+
+  await writeAuditLog({
+    actorId: userId,
+    action: "DIVISION_RENAME",
+    resourceType: "DIVISION",
+    resourceId: id,
+    resourceName: division.name,
+    divisionId: id,
+    metadata: { oldValue: existing?.name, newValue: division.name },
   });
 
   return NextResponse.json({ data: division });
@@ -76,6 +89,17 @@ export async function DELETE(_req: Request, { params }: RouteContext) {
       { status: 422 },
     );
   }
+
+  const divisionToDelete = await prisma.division.findUnique({ where: { id }, select: { name: true } });
+
+  await writeAuditLog({
+    actorId: userId,
+    action: "DIVISION_DELETE",
+    resourceType: "DIVISION",
+    resourceId: id,
+    resourceName: divisionToDelete?.name ?? "Unknown",
+    divisionId: id,
+  });
 
   await prisma.division.delete({ where: { id } });
 

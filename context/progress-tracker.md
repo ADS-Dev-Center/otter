@@ -5,13 +5,20 @@ change.
 
 ## Current Phase
 
-- Division management complete: Settings page fully wired to real API (create, rename, delete)
+- Feature 17 complete: Settings page aligned to reflect only implemented functionality
 
 ## Current Goal
 
 - Define and implement the next feature scope
 
 ## Completed
+
+- **[BUGFIX]** Fixed sign-up redirect and data sync race condition:
+  - Changed sign-up `forceRedirectUrl` from `/dashboard` to `/onboarding` to eliminate race condition with webhook
+  - Improved webhook handler with comprehensive error handling, validation, and logging
+  - Created [WEBHOOK_SETUP_VERIFICATION.md](WEBHOOK_SETUP_VERIFICATION.md) guide for debugging webhook issues
+  - Root cause: User was redirected to `/dashboard` before Clerk webhook synced user to database, causing blank page and membershipCount check to redirect to onboarding
+  - New flow: Sign-up → Onboarding → Create Division → Dashboard (all data synced properly at each step)
 
 - Migrated the UI theme from classic glassmorphism to liquid glassmorphism
 - Updated the shared liquid-glass token system in `app/globals.css`
@@ -147,9 +154,68 @@ change.
   - Rewrote `app/(app)/settings/page.tsx` — fetches real divisions from API; inline rename (click pencil → edit in place, Enter/blur to save); delete with confirmation dialog and error display; "New Division" button with create dialog; delete button hidden when only one division remains
   - Removed all `DEFAULT_DIVISIONS` / `DIVISIONS_STORAGE_KEY` usage from settings page
 
+## Completed (Onboarding Fix + Auth Redirect)
+
+- Fixed `app/page.tsx`: replaced non-existent `isAuthenticated` with `userId` from `auth()` — resolves post-sign-in redirect loop/delay
+- Fixed `app/onboarding/page.tsx`: renamed all "Workspace" UI text to "Division" (step label, card title, card description, field label, default name)
+- Fixed `app/api/divisions/route.ts`: wrapped `prisma.division.create` and `writeAuditLog` in separate try/catch blocks; audit log failures are now non-fatal so division creation never returns a blank 500
+- Replaced deprecated `result.error.flatten().fieldErrors` (Zod v4) with `Object.fromEntries(result.error.issues.map(...))` in divisions POST route
+
 ## In Progress
 
-- None.
+- Database reset pending explicit user confirmation (see session notes).
+
+## Completed (User Model + Clerk Webhook Sync)
+
+- Added `User` model to `prisma/schema.prisma` — fields: `clerkId (unique)`, `email (unique)`, `name`, `imageUrl?`, `createdAt`, `updatedAt`
+- Created and applied `prisma/migrations/20260509032016_add_user_model/migration.sql`
+- Regenerated Prisma client — `prisma.user` is now available
+- Created `app/api/webhooks/clerk/route.ts` — handles `user.created`, `user.updated` (upsert by `clerkId`), `user.deleted` (deleteMany); uses `verifyWebhook(req)` from `@clerk/nextjs/webhooks` with `CLERK_WEBHOOK_SECRET`
+- Updated `proxy.ts` — added `/api/webhooks(.*)` to public routes so Clerk middleware does not block the webhook endpoint
+- Added `CLERK_WEBHOOK_SECRET=` placeholder to `.env` — must be filled from Clerk Dashboard → Webhooks → endpoint signing secret
+- `npm run build` passes with no type errors
+
+## Completed (Feature 14 — Real Audit Log)
+
+- Extended `AuditAction` enum with 10 new values: `CREDENTIAL_COPY`, `PROJECT_CREATE`, `PROJECT_UPDATE`, `PROJECT_DELETE`, `MEMBER_INVITE`, `MEMBER_ROLE_CHANGE`, `MEMBER_REMOVE`, `DIVISION_CREATE`, `DIVISION_RENAME`, `DIVISION_DELETE`
+- Extended `AuditLog` model: added `resourceType String`, `resourceId String?`, `resourceName String`, and `division Division?` back-relation; added `auditLogs AuditLog[]` to `Division` model
+- Created `prisma/migrations/20260509030509_extend_audit_log/migration.sql` — adds columns as nullable, backfills existing 38 rows (`resourceType='CREDENTIAL'`, `resourceName` from linked credential or 'Unknown'), then enforces NOT NULL; adds FK for `divisionId → Division`
+- Applied migration and regenerated Prisma client
+- Created `lib/audit.ts` — `writeAuditLog(payload)` helper used by all mutation routes
+- Created `lib/validations/audit.ts` — Zod schema for `GET /api/audit` query params
+- Created `app/api/audit/route.ts` — GET handler: division-scoped, supports `divisionId`, `action`, `resourceType`, `dateRange`, `q`, `page`, `perPage`; resolves Clerk actor info (name, email, imageUrl) with per-request Map cache; returns `AuditEntryDTO[]` with pagination
+- Updated `app/api/credentials/route.ts` (POST) — uses `writeAuditLog` with `resourceType`, `resourceId`, `resourceName`
+- Updated `app/api/credentials/[id]/route.ts` (PUT, DELETE) — uses `writeAuditLog` with full payload
+- Updated `app/api/credentials/[id]/reveal/route.ts` (GET) — uses `writeAuditLog`
+- Updated `app/api/projects/route.ts` (POST) — adds `PROJECT_CREATE` audit entry
+- Updated `app/api/projects/[id]/route.ts` (PATCH, DELETE) — adds `PROJECT_UPDATE` / `PROJECT_DELETE` audit entries
+- Updated `app/api/divisions/route.ts` (POST) — adds `DIVISION_CREATE` audit entry
+- Updated `app/api/divisions/[id]/route.ts` (PATCH, DELETE) — adds `DIVISION_RENAME` (with oldValue/newValue metadata) / `DIVISION_DELETE` audit entries
+- Created `components/audit/AuditLogSkeleton.tsx` — proper Suspense skeleton mirroring table structure
+- Created `components/audit/AuditLogRow.tsx` — presentational table row; full `ACTION_META` map for all 15 `AuditAction` values with Phosphor icons and badge colors
+- Created `components/audit/AuditLogTable.tsx` — Client Component with filter state (search, dateRange, division, action, resource), `useTransition`-based re-fetch on filter change, `.glass` / `.glass-raised` surfaces, fixed hover via `hover:bg-(--glass-bg-hover)`, actor avatar column
+- Rewrote `app/(app)/auditlog/page.tsx` — Server Component with `Suspense`; fetches initial page from Prisma directly (no artificial delay), resolves Clerk actors, passes to `AuditLogTable`
+- `npm run build` passes with no type errors
+
+## Completed (Feature 13 — Slug)
+
+- Added `slug String @unique` to `Project` model in `prisma/schema.prisma`
+- Added `slug String` + `@@unique([projectId, slug])` to `Credential` model
+- Created `prisma/migrations/20260509000000_add_slugs/migration.sql` — nullable-add, id-backfill for existing rows, then NOT NULL + unique index
+- Applied migration with `prisma migrate deploy`; regenerated Prisma client
+- Created `lib/slug.ts` — `toSlug(name)` lowercases and replaces non-alphanumeric runs with `-`
+- Updated `app/api/projects/route.ts` (POST) — generates slug from name; returns `409 CONFLICT` if slug already taken
+- Updated `app/api/credentials/route.ts` (POST) — generates slug from name; returns `409 CONFLICT` if slug already taken within the project (`projectId_slug` unique key)
+- Updated `types/project.ts` and `types/credential.ts` — added `slug: string` field
+- Renamed route folder `[projectId]` → `[slug]` and `[credentialId]` → `[credentialSlug]`
+- Rewrote `app/(app)/projects/[slug]/page.tsx` — looks up project by `slug` (not `id`); passes `projectSlug` to `ProjectCredentialsList`
+- Rewrote `app/(app)/projects/[slug]/credentials/new/page.tsx` — looks up project by `slug`; passes `project.id` to `CredentialForm`
+- Rewrote `app/(app)/projects/[slug]/credentials/[credentialSlug]/edit/page.tsx` — looks up project by `slug`, then credential by `projectId_slug` composite key
+- Updated `components/projects/ProjectCard.tsx` — all hrefs use `project.slug`
+- Updated `components/projects/ProjectCredentialsList.tsx` — accepts `projectSlug`; edit URL uses `credential.slug`
+- Updated `components/projects/DeleteProjectDialog.tsx` — confirmation input asks user to type the project **slug** to enable delete
+- Updated `components/credentials/DeleteCredentialDialog.tsx` — accepts `credentialSlug`; confirmation input asks user to type the credential **slug** to enable delete
+- Fixed pre-existing type error in `CredentialForm.tsx`: changed `z.boolean().optional().default(true)` to `z.boolean()` and added explicit `secret` to all `append`/`replace` calls (parseDotEnv paste defaults to `secret: false`)
 
 ## Completed (Feature 12 — Credentials Page CRUD + Paste .env)
 
@@ -196,9 +262,72 @@ change.
 - Updated `components/projects/ProjectCredentialsAccordion.tsx` — imports from `credential-types.ts` instead of deleted mock-data, added empty state
 - Deleted `app/(app)/projects/mock-data.ts` — all mock data removed
 
+## Completed (Feature 15 — Invite Member)
+
+- Added `Invitation` model + `InvitationStatus` enum to `prisma/schema.prisma`; added `invitations Invitation[]` back-relation to `Division`
+- Applied migration `20260509040857_add_invitation_model`; regenerated Prisma client
+- Created `lib/emails/invite.ts` — plain HTML invite email template (`inviteEmailHtml`)
+- Created `lib/validations/member.ts` — `inviteMemberSchema` + `changeMemberRoleSchema` (Zod, `as const` enum fix for Zod v4)
+- Created `app/api/members/invite/route.ts` — `POST`: Path A (user exists → create membership) + Path B (user absent → create Invitation row, send email via Resend, return invite link)
+- Created `app/api/members/route.ts` — `GET`: returns active members (resolves names from `User` table or Clerk API) + pending invitations scoped to division
+- Created `app/api/members/[membershipId]/route.ts` — `PATCH` (change role, owner-guarded) + `DELETE` (remove member, owner-guarded); both write audit logs
+- Created `app/api/members/invitations/[id]/route.ts` — `DELETE`: revokes pending invitation (admin+ only)
+- Created `app/api/invite/accept/route.ts` — `GET`: validates token (status, expiry), creates `DivisionMembership`, marks invitation ACCEPTED, writes audit log
+- Created `app/accept-invite/page.tsx` — Server Component: reads token, unauthenticated users redirected to `/sign-up?redirect_url=…`, inlines Prisma logic (no HTTP self-fetch), shows `ErrorCard` on expired/revoked/missing token, redirects to `/` on success
+- Rewrote `app/(app)/members/page.tsx` — Client Component: reads `divisionId` from localStorage, fetches real `GET /api/members`, invite form wired to `POST /api/members/invite`, shows copy-able invite link modal on Path B, role change via dialog (PATCH), remove member button (DELETE), revoke invite button (DELETE invitations), pending invites section
+- Fixed pre-existing type errors in `app/api/webhooks/clerk/route.ts`: removed `session.pending` and `invitation.*` event comparisons no longer in Clerk SDK type union
+
+## Completed (Feature 16 — ngrok + Clerk Webhook Setup for Development)
+
+- Removed `svix` dependency from `package.json` — Clerk's `@clerk/nextjs/webhooks` provides `verifyWebhook(req)` directly
+- Cleaned webhook handler at `app/api/webhooks/clerk/route.ts`:
+  - Removed Svix-specific header logging (`svix-id`, `svix-timestamp`, `svix-signature`)
+  - Retained comprehensive error handling, validation, and logging for debug purposes
+  - Handler uses `verifyWebhook(req)` from `@clerk/nextjs/webhooks` with `CLERK_WEBHOOK_SIGNING_SECRET`
+  - Syncs `user.created`, `user.updated` (upsert by `clerkId`), and `user.deleted` events to local database
+- Verified `CLERK_WEBHOOK_SIGNING_SECRET` in `.env` — must match Clerk Dashboard → Webhooks → endpoint signing secret
+- Verified `proxy.ts` — webhook endpoint (`/api/webhooks(.*)`) already in public routes so Clerk middleware does not block
+- Ready for ngrok tunnel during development:
+  - Run `ngrok http 3000` to generate tunnel URL
+  - Update Clerk Dashboard → Webhooks to point to `https://[ngrok-url]/api/webhooks/clerk`
+  - Dev server logs webhook verification and sync status for all user events
+- `npm run build` passes with no type errors
+
+## Completed (Onboarding invite + member loading fix)
+
+- Fixed `app/(app)/members/page.tsx`: `loading` now initializes as `false`; was stuck on `true` because the `divisionId` effect returns early when null, never calling `setLoading(false)`
+- Wired onboarding Step 2 invite form to real `POST /api/members/invite` API:
+  - Tracks `divisionId` in component state (set after Step 1 creates the division)
+  - Inline `RadioGroup` role selector (Member / Admin) replaces the placeholder disabled button
+  - `useTransition` for loading state; shows sent-invite list with checkmarks below the form
+  - Skip button relabels to "Done" once at least one invite has been sent
+  - Errors (409 conflict, network) surfaced inline
+
+## Completed (Feature 17 — Settings Page Alignment)
+
+- Created `app/api/profile/route.ts` — `GET`: reads `User` row by `clerkId`; returns `{ name, email, imageUrl, createdAt }` with nulls on missing row (never throws)
+- Rewrote `app/(app)/settings/page.tsx`:
+  - Added **Profile card** at the top: 48px avatar (DB `imageUrl` → Clerk `imageUrl` → initial letter fallback), display name, email, "Member since" date; "Edit Profile" button calls `useClerk().openUserProfile()` to open Clerk's own modal
+  - Simplified **Security & Authentication**: replaced fake Fingerprint/LockKey/WarningCircle rows with three accurate read-only rows (`Authentication: Clerk`, `Session management: Clerk-managed`, `Suspicious login alerts: Clerk-managed`)
+  - Fixed **Vault Policy**: removed "Copy protection" row (not implemented); "Encryption at rest" now shows `AES-256-GCM` (matches `lib/crypto.ts`)
+  - Fixed **Audit & Compliance**: removed "Audit retention" row (no retention job); moved to full-width below the 2-col grid; "Reveal activity log" shows `Enabled` badge
+  - Removed **Notifications & Integrations** card entirely (static badges, no real integrations)
+  - Final section order: Header → Profile → Workspace Context → 2-col grid (Security + Vault) → Audit & Compliance → Division Management
+- `npm run build` passes with no type errors
+
+## Completed (Feature 18 — Dashboard Real Data)
+
+- Created `lib/audit-meta.ts` — shared `ACTION_META` record (all 15 `AuditAction` values) with `label`, `verb`, `icon`, `badgeClass`, `iconBg`, `iconColor`; plus shared `relativeTime(date)` helper
+- Updated `components/audit/AuditLogRow.tsx` — removed duplicate local `ACTION_META` and `relativeTime`; now imports both from `lib/audit-meta`
+- Created `components/dashboard/DashboardStats.tsx` — 4 real stat cards (division count, project count, credential count, 7-day audit count); all values from Prisma queries
+- Created `components/dashboard/DivisionCards.tsx` — My Divisions grid with real project/member/credential counts per division; accent palette from `getDivisionPalette`; `ROLE_LABEL` map for human-readable role display; empty state
+- Created `components/dashboard/RecentActivity.tsx` — feed of 7 most recent audit log entries across user's divisions; actor names from `User` table; action verb + resource name format; `relativeTime` display
+- Created `components/dashboard/QuickAccess.tsx` — 5 most recently created projects across all divisions; `<Link href="/projects/[slug]">` rows with credential counts; empty state with CTA
+- Rewrote `app/(app)/dashboard/page.tsx` — Server Component; fetches all data with two `Promise.all` rounds (memberships + user info first, then counts/logs/projects + per-division cred counts in parallel); actor names resolved from `User` table; time-of-day greeting from `currentUser()` first name; no mock data remains
+- `npm run build` passes with no type errors
+
 ## Next Up
 
-- Polish member invite/role affordances once a real data layer exists
 - Define and implement the next feature scope
 
 ## Open Questions

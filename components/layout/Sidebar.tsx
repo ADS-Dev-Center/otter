@@ -9,10 +9,10 @@ import {
   GearSix,
   Lifebuoy,
   SignOut,
-  ShieldChevron,
   X,
 } from "@phosphor-icons/react";
 import type { IconProps } from "@phosphor-icons/react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -63,8 +63,14 @@ export default function Sidebar({ onClose }: SidebarProps) {
   return (
     <aside className="panel-sidebar pointer-events-auto flex h-full w-60 flex-col">
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-(--glass-border-subtle) px-4">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-(--accent-primary)">
-          <ShieldChevron weight="duotone" size={22} color="white" />
+        <div className="liquid-button flex size-10 items-center justify-center rounded-lg p-1.5">
+          <Image
+            src="/logo.png"
+            alt="Otter logo"
+            width={28}
+            height={28}
+            className="size-full object-contain"
+          />
         </div>
         <div>
           <p className="text-base font-bold leading-tight text-(--text-primary)">

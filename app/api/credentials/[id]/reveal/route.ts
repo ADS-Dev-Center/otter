@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserDivisionIds } from "@/lib/auth";
 import { decryptFromString } from "@/lib/crypto";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function GET(
   _req: Request,
@@ -65,13 +66,14 @@ export async function GET(
     }
   });
 
-  await prisma.auditLog.create({
-    data: {
-      actorId: userId,
-      action: "CREDENTIAL_VIEW",
-      credentialId: id,
-      divisionId: credential.project.divisionId,
-    },
+  await writeAuditLog({
+    actorId: userId,
+    action: "CREDENTIAL_VIEW",
+    resourceType: "CREDENTIAL",
+    resourceId: id,
+    resourceName: credential.name,
+    credentialId: id,
+    divisionId: credential.project.divisionId,
   });
 
   return NextResponse.json({ data: decryptedFields });

@@ -13,13 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   updateProjectFormSchema,
@@ -45,23 +38,17 @@ export function EditProjectDialog({
   const {
     register,
     handleSubmit,
-    setValue,
-    watch,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<UpdateProjectFormInput>({
     resolver: zodResolver(updateProjectFormSchema),
   });
 
-  const environment = watch("environment");
-
   useEffect(() => {
     if (project) {
       reset({
         name: project.name,
         description: project.description ?? "",
-        environment:
-          project.environment as UpdateProjectFormInput["environment"],
       });
     }
   }, [project, reset]);
@@ -142,52 +129,6 @@ export function EditProjectDialog({
                 {errors.description.message}
               </p>
             )}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-(--text-subtle)">
-              Default Environment
-            </label>
-            <Select
-              value={environment ?? ""}
-              onValueChange={(v) =>
-                setValue(
-                  "environment",
-                  v as UpdateProjectFormInput["environment"],
-                  { shouldValidate: true },
-                )
-              }
-            >
-              <SelectTrigger className="glass rounded-lg border-(--glass-border) text-(--text-primary) focus:ring-[rgba(77,142,255,0.4)] focus:border-(--accent-primary) bg-transparent">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="panel-dropdown">
-                <SelectItem
-                  value="development"
-                  className="text-(--text-primary) focus:bg-(--glass-bg-hover)"
-                >
-                  Development
-                </SelectItem>
-                <SelectItem
-                  value="staging"
-                  className="text-(--text-primary) focus:bg-(--glass-bg-hover)"
-                >
-                  Staging
-                </SelectItem>
-                <SelectItem
-                  value="production"
-                  className="text-(--text-primary) focus:bg-(--glass-bg-hover)"
-                >
-                  Production
-                </SelectItem>
-                <SelectItem
-                  value="shared"
-                  className="text-(--text-primary) focus:bg-(--glass-bg-hover)"
-                >
-                  Shared
-                </SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {serverError && (

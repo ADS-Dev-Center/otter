@@ -151,7 +151,6 @@ export default function ProjectsPage() {
     const memberCount =
       divisions.find((d) => d.id === project.divisionId)?.memberCount ?? 1;
     return {
-      accentBarClass: palette.accentBarClass,
       iconBgClass: palette.iconBgClass,
       iconColor: palette.iconColor,
       badgeClass: getDivisionBadgeClass(palette.iconColor),

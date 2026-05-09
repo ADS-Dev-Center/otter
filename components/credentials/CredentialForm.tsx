@@ -38,7 +38,7 @@ const MAX_FIELDS = 200;
 const fieldSchema = z.object({
   key: z.string().min(1, "Key is required").max(200),
   value: z.string().max(10000),
-  secret: z.boolean().optional().default(true),
+  secret: z.boolean(),
 });
 
 const ENVIRONMENTS = [
@@ -89,7 +89,12 @@ interface CreateProps {
 interface EditProps {
   mode: "edit";
   credential: CredentialWithProject;
-  initialFields: Array<{ key: string; value: string; secret: boolean }>;
+  initialFields: Array<{
+    key: string;
+    value: string;
+    secret: boolean;
+    decryptionFailed?: boolean;
+  }>;
   returnUrl?: string;
 }
 
@@ -169,11 +174,13 @@ export function CredentialForm(props: Props) {
         replace(
           parsed
             .slice(0, MAX_FIELDS)
-            .map((p) => ({ key: p.key, value: p.value })),
+            .map((p) => ({ key: p.key, value: p.value, secret: false })),
         );
       } else {
         setPasteWarning(null);
-        replace(parsed.map((p) => ({ key: p.key, value: p.value })));
+        replace(
+          parsed.map((p) => ({ key: p.key, value: p.value, secret: false })),
+        );
       }
       setPasteText("");
       setPasteOpen(false);
@@ -393,6 +400,9 @@ export function CredentialForm(props: Props) {
         <div className="divide-y divide-(--glass-border-subtle)">
           {fields.map((field, idx) => {
             const isVisible = visibleValues.has(idx);
+            const decryptionFailed = isEdit
+              ? (props as EditProps).initialFields?.[idx]?.decryptionFailed
+              : false;
             return (
               <div
                 key={field.id}
@@ -410,6 +420,14 @@ export function CredentialForm(props: Props) {
                     placeholder="value"
                     className="h-8 glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) font-mono text-xs placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary) pr-7"
                   />
+                  {decryptionFailed && (
+                    <div
+                      title="Decryption failed for this field"
+                      className="absolute left-0 top-0 mt-1 ml-2 text-amber-500"
+                    >
+                      <Warning weight="duotone" size={14} />
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => toggleSecretVisibility(idx)}
@@ -444,7 +462,7 @@ export function CredentialForm(props: Props) {
           )}
           <button
             type="button"
-            onClick={() => append({ key: "", value: "" })}
+            onClick={() => append({ key: "", value: "", secret: true })}
             disabled={fields.length >= MAX_FIELDS}
             className="flex items-center gap-1.5 text-xs text-(--text-muted) hover:text-(--accent-primary) disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
