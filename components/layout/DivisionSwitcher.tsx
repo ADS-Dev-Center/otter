@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Buildings, CaretRight, Plus } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ export default function DivisionSwitcher({
   onDivisionChange,
   onAddDivision,
 }: DivisionSwitcherProps) {
+  const router = useRouter();
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [activeDivisionId, setActiveDivisionId] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
@@ -85,8 +87,8 @@ export default function DivisionSwitcher({
   );
 
   const handleDivisionSelect = (divisionId: string) => {
+    const isChanging = divisionId !== activeDivisionId;
     setActiveDivisionId(divisionId);
-    // Write before dispatching so any listener sees the updated value immediately
     if (typeof window !== "undefined") {
       window.localStorage.setItem(ACTIVE_DIVISION_STORAGE_KEY, divisionId);
       window.dispatchEvent(
@@ -97,6 +99,9 @@ export default function DivisionSwitcher({
     }
     onDivisionChange?.(divisionId);
     setIsOpen(false);
+    if (isChanging) {
+      router.push("/dashboard");
+    }
   };
 
   const handleCreateDivision = async () => {

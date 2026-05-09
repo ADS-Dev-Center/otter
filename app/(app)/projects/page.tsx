@@ -1,29 +1,167 @@
-import Link from "next/link";
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FolderLock,
   Key,
-  UsersThree,
-  Plus,
-  CaretRight,
   Buildings,
   MagnifyingGlass,
-} from "@phosphor-icons/react/dist/ssr";
-import { Badge } from "@/components/ui/badge";
+  Plus,
+} from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { mockProjects } from "./mock-data";
+import { ProjectCard } from "@/components/projects/ProjectCard";
+import { ProjectListSkeleton } from "@/components/projects/ProjectListSkeleton";
+import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
+import { EditProjectDialog } from "@/components/projects/EditProjectDialog";
+import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog";
+import {
+  ACTIVE_DIVISION_STORAGE_KEY,
+  getDivisionPalette,
+} from "@/lib/divisions";
+import type { Project } from "@/types/project";
 
-const totalCredentials = mockProjects.reduce(
-  (s, p) => s + p.credentialCount,
-  0,
-);
-const totalMembers = [...new Set(mockProjects.map((p) => p.division))].length;
+type Role = "SUPER_ADMIN" | "DIVISION_OWNER" | "DIVISION_ADMIN" | "MEMBER";
+
+interface DivisionInfo {
+  id: string;
+  name: string;
+  role: Role;
+  memberCount: number;
+}
+
+function getDivisionBadgeClass(accentColor: string): string {
+  const map: Record<string, string> = {
+    "var(--accent-primary)":
+      "border-[rgba(77,142,255,0.3)] text-(--accent-primary) bg-[rgba(77,142,255,0.08)]",
+    "var(--accent-teal)":
+      "border-[rgba(45,212,191,0.3)] text-(--accent-teal) bg-[rgba(45,212,191,0.08)]",
+    "var(--accent-amber)":
+      "border-[rgba(245,166,35,0.3)] text-(--accent-amber) bg-[rgba(245,166,35,0.08)]",
+  };
+  return map[accentColor] ?? map["var(--accent-primary)"]!;
+}
 
 export default function ProjectsPage() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [activeDivisionId, setActiveDivisionId] = useState<string>("");
+  const [divisions, setDivisions] = useState<DivisionInfo[]>([]);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editProject, setEditProject] = useState<Project | null>(null);
+  const [deleteProject, setDeleteProject] = useState<Project | null>(null);
+
+  const activeDivision = useMemo(() => {
+    return (
+      divisions.find((d) => d.id === activeDivisionId) ?? divisions[0] ?? null
+    );
+  }, [divisions, activeDivisionId]);
+
+  const fetchProjects = useCallback(async (divisionId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const url = divisionId
+        ? `/api/projects?divisionId=${divisionId}`
+        : "/api/projects";
+      const res = await fetch(url);
+      if (!res.ok) {
+        const status = res.status;
+        const text = await res.text().catch(() => "");
+        throw new Error(
+          `HTTP ${status}: ${text || "Failed to fetch projects"}`,
+        );
+      }
+      const json = (await res.json()) as { data: Project[] };
+      setProjects(json.data ?? []);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to fetch projects";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const storedId =
+      typeof window !== "undefined"
+        ? (window.localStorage.getItem(ACTIVE_DIVISION_STORAGE_KEY) ?? "")
+        : "";
+    setActiveDivisionId(storedId);
+    fetchProjects(storedId);
+
+    async function loadDivisions() {
+      const res = await fetch("/api/divisions");
+      if (!res.ok) return;
+      const json = (await res.json()) as { data: DivisionInfo[] };
+      setDivisions(json.data ?? []);
+    }
+    loadDivisions();
+  }, [fetchProjects]);
+
+  useEffect(() => {
+    if (activeDivision && !activeDivisionId) {
+      setActiveDivisionId(activeDivision.id);
+    }
+  }, [activeDivision, activeDivisionId]);
+
+  useEffect(() => {
+    function onDivisionChange() {
+      const id =
+        typeof window !== "undefined"
+          ? (window.localStorage.getItem(ACTIVE_DIVISION_STORAGE_KEY) ?? "")
+          : "";
+      setActiveDivisionId(id);
+      fetchProjects(id);
+    }
+    window.addEventListener("otter-division-context-change", onDivisionChange);
+    return () =>
+      window.removeEventListener(
+        "otter-division-context-change",
+        onDivisionChange,
+      );
+  }, [fetchProjects]);
+
+  const role = activeDivision?.role ?? null;
+  const canCreate =
+    role === "DIVISION_OWNER" ||
+    role === "DIVISION_ADMIN" ||
+    role === "SUPER_ADMIN";
+  const canEdit =
+    role === "DIVISION_OWNER" ||
+    role === "DIVISION_ADMIN" ||
+    role === "SUPER_ADMIN";
+  const canDelete = role === "DIVISION_OWNER" || role === "SUPER_ADMIN";
+
+  const filtered = search
+    ? projects.filter((p) =>
+        p.name.toLowerCase().includes(search.toLowerCase()),
+      )
+    : projects;
+
+  function getPaletteForProject(project: Project) {
+    const divIdx = divisions.findIndex((d) => d.id === project.divisionId);
+    const palette = getDivisionPalette(divIdx === -1 ? 0 : divIdx);
+    const divisionName =
+      divisions.find((d) => d.id === project.divisionId)?.name ?? "Division";
+    const memberCount =
+      divisions.find((d) => d.id === project.divisionId)?.memberCount ?? 1;
+    return {
+      accentBarClass: palette.accentBarClass,
+      iconBgClass: palette.iconBgClass,
+      iconColor: palette.iconColor,
+      badgeClass: getDivisionBadgeClass(palette.iconColor),
+      divisionName,
+      memberCount,
+    };
+  }
+
   return (
     <div>
-      {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
@@ -41,13 +179,17 @@ export default function ProjectsPage() {
           </p>
         </div>
 
-        <Button className="rounded-lg shrink-0">
-          <Plus weight="duotone" data-icon="inline-start" />
-          Create Project
-        </Button>
+        {canCreate && (
+          <Button
+            className="rounded-lg shrink-0"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus weight="duotone" data-icon="inline-start" />
+            Create Project
+          </Button>
+        )}
       </div>
 
-      {/* Summary strip */}
       <div className="glass rounded-xl flex items-center gap-6 px-5 py-3.5 mt-5">
         <div className="flex items-center gap-2">
           <FolderLock
@@ -56,7 +198,7 @@ export default function ProjectsPage() {
             color="var(--accent-primary)"
           />
           <span className="text-sm font-semibold text-(--text-primary)">
-            {mockProjects.length}
+            {projects.length}
           </span>
           <span className="text-sm text-(--text-muted)">Projects</span>
         </div>
@@ -66,7 +208,7 @@ export default function ProjectsPage() {
         <div className="flex items-center gap-2">
           <Key weight="duotone" size={16} color="var(--accent-teal)" />
           <span className="text-sm font-semibold text-(--text-primary)">
-            {totalCredentials}
+            {projects.reduce((sum, p) => sum + p._count.credentials, 0)}
           </span>
           <span className="text-sm text-(--text-muted)">Credentials</span>
         </div>
@@ -76,13 +218,12 @@ export default function ProjectsPage() {
         <div className="flex items-center gap-2">
           <Buildings weight="duotone" size={16} color="var(--accent-amber)" />
           <span className="text-sm font-semibold text-(--text-primary)">
-            {totalMembers}
+            {divisions.length}
           </span>
           <span className="text-sm text-(--text-muted)">Divisions</span>
         </div>
       </div>
 
-      {/* Search */}
       <div className="relative mt-5">
         <MagnifyingGlass
           weight="duotone"
@@ -92,113 +233,93 @@ export default function ProjectsPage() {
         />
         <Input
           placeholder="Search projects..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           className="pl-8 glass rounded-lg border-(--glass-border) text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary) bg-transparent"
         />
       </div>
 
-      {/* Project cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-5">
-        {mockProjects.map((project) => (
-          <Link
-            key={project.id}
-            href={`/projects/${project.id}`}
-            className="glass rounded-xl flex flex-col overflow-hidden group transition-all duration-150 hover:glass-raised"
-          >
-            {/* Accent top bar */}
-            <div
-              className={cn(
-                "h-0.5 w-full shrink-0",
-                project.divisionAccentBarClass,
-              )}
+      {error && (
+        <div className="glass rounded-xl mt-5 border border-[rgba(240,68,56,0.3)] bg-[rgba(240,68,56,0.08)] px-4 py-3 text-sm text-(--state-error)">
+          <p className="font-medium">Failed to load projects</p>
+          <p className="text-xs text-(--text-muted) mt-1">{error}</p>
+        </div>
+      )}
+
+      {loading ? (
+        <ProjectListSkeleton />
+      ) : error ? null : filtered.length === 0 ? (
+        <div className="glass rounded-xl mt-5 w-full flex flex-col items-center justify-center gap-5 py-20 text-center">
+          <div className="glass rounded-full size-16 flex items-center justify-center">
+            <FolderLock weight="duotone" size={32} color="var(--text-muted)" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-(--text-primary)">
+              {search ? "No projects match your search" : "No projects yet"}
+            </p>
+            <p className="text-xs text-(--text-muted)">
+              {search
+                ? "Try a different search term"
+                : canCreate
+                  ? "Create your first project to get started"
+                  : "No projects have been created in this division yet"}
+            </p>
+          </div>
+          {!search && canCreate && (
+            <Button className="rounded-lg" onClick={() => setCreateOpen(true)}>
+              <Plus weight="duotone" size={16} />
+              Create Project
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-5">
+          {filtered.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              palette={getPaletteForProject(project)}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              onEdit={setEditProject}
+              onDelete={setDeleteProject}
             />
+          ))}
+        </div>
+      )}
 
-            <div className="p-5 flex flex-col gap-4 flex-1">
-              {/* Header */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "size-10 rounded-lg flex items-center justify-center shrink-0",
-                      project.divisionIconBgClass,
-                    )}
-                  >
-                    <FolderLock
-                      weight="duotone"
-                      size={20}
-                      color={project.divisionIconColor}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-(--text-primary) leading-tight truncate">
-                      {project.name}
-                    </p>
-                    <div className="mt-1">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-[10px] px-1.5 py-0",
-                          project.divisionBadgeClass,
-                        )}
-                      >
-                        {project.division}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-                <CaretRight
-                  weight="duotone"
-                  size={16}
-                  color="var(--text-muted)"
-                  className="shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-100"
-                />
-              </div>
+      <CreateProjectDialog
+        open={createOpen}
+        divisionId={activeDivision?.id ?? activeDivisionId}
+        onOpenChange={setCreateOpen}
+        onCreated={(project) => setProjects((prev) => [project, ...prev])}
+      />
 
-              <p className="text-xs text-(--text-muted) leading-relaxed">
-                {project.description}
-              </p>
+      <EditProjectDialog
+        open={editProject !== null}
+        project={editProject}
+        onOpenChange={(open) => {
+          if (!open) setEditProject(null);
+        }}
+        onUpdated={(updated) => {
+          setProjects((prev) =>
+            prev.map((p) => (p.id === updated.id ? updated : p)),
+          );
+          setEditProject(null);
+        }}
+      />
 
-              <div className="h-px bg-(--glass-border-subtle)" />
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="glass rounded-lg flex flex-col items-center gap-0.5 py-2.5">
-                  <Key weight="duotone" size={14} color="var(--text-subtle)" />
-                  <span className="text-base font-bold text-(--text-primary)">
-                    {project.credentialCount}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-wider text-(--text-muted)">
-                    Credentials
-                  </span>
-                </div>
-                <div className="glass rounded-lg flex flex-col items-center gap-0.5 py-2.5">
-                  <UsersThree
-                    weight="duotone"
-                    size={14}
-                    color="var(--text-subtle)"
-                  />
-                  <span className="text-base font-bold text-(--text-primary)">
-                    {project.memberCount}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-wider text-(--text-muted)">
-                    Members
-                  </span>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-between mt-auto">
-                <span className="text-[11px] text-(--text-muted)">
-                  Updated {project.lastUpdated}
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-lg border border-(--glass-border-subtle) bg-(--glass-bg) px-2.5 py-1 text-xs text-(--text-subtle) transition-colors group-hover:bg-(--glass-bg-hover) group-hover:text-(--text-primary)">
-                  Open
-                  <CaretRight weight="duotone" size={14} />
-                </span>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+      <DeleteProjectDialog
+        open={deleteProject !== null}
+        project={deleteProject}
+        onOpenChange={(open) => {
+          if (!open) setDeleteProject(null);
+        }}
+        onDeleted={(id) => {
+          setProjects((prev) => prev.filter((p) => p.id !== id));
+          setDeleteProject(null);
+        }}
+      />
     </div>
   );
 }

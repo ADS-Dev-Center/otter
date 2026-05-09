@@ -1,6 +1,6 @@
 ## Application Building Context
 
-always check the relevant skills before implementing
+always check the relevant `skills` before implementing
 
 Read the following files in order before implementing
 or making any architectural decision:

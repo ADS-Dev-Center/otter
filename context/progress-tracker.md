@@ -151,6 +151,51 @@ change.
 
 - None.
 
+## Completed (Feature 12 — Credentials Page CRUD + Paste .env)
+
+- Added `Credential`, `CredentialField`, `AuditLog` models to `prisma/schema.prisma`; added `AuditAction` enum; ran `prisma migrate dev --name add_credential_auditlog`
+- Created `lib/crypto.ts` — AES-256-GCM encrypt/decrypt using `CREDENTIAL_ENCRYPTION_KEY` env var; throws at module load if key is missing
+- Added `CREDENTIAL_ENCRYPTION_KEY` (32-byte base64 key) to `.env`
+- Created `lib/validations/credential.ts` — `createCredentialSchema`, `updateCredentialSchema`, form schemas, inferred types
+- Created `types/credential.ts` — `Credential`, `CredentialField`, `CredentialFieldWithValue`, `CredentialWithProject` interfaces
+- Created `app/api/credentials/route.ts` — `GET` (list by division/project, membership-scoped) and `POST` (create with field encryption + audit log)
+- Created `app/api/credentials/[id]/route.ts` — `GET` (metadata, no values), `PUT` (replace fields with re-encryption + audit log), `DELETE` (204 + audit log)
+- Created `app/api/credentials/[id]/reveal/route.ts` — `GET` (decrypt all field values for authorized member + audit log)
+- Created `components/credentials/parseDotEnv.ts` — robust parser supporting comments, blank lines, `export` prefix, quoted values, trim
+- Created `components/credentials/CredentialCard.tsx` — glass card with env badge, field count, expand to reveal fields (inline decrypt on demand), per-field secret toggle and copy button
+- Created `components/credentials/CredentialForm.tsx` — unified create/edit form with dynamic key/value fields, secret toggle per field, paste .env textarea (replaces fields on paste), max 200 field guard
+- Created `components/credentials/CredentialListSkeleton.tsx` — animated loading skeleton
+- Created `components/credentials/DeleteCredentialDialog.tsx` — `AlertDialog` confirm with error display
+- Rewrote `app/(app)/credentials/page.tsx` — list view with search filter, role-gated create button, empty state, delete dialog; reads active division from localStorage
+- Created `app/(app)/credentials/new/page.tsx` — Server Component that fetches user's projects; renders `CredentialForm` in create mode
+- Created `app/(app)/credentials/[id]/edit/page.tsx` — Server Component that decrypts current values for pre-fill; role-gated (admin only); renders `CredentialForm` in edit mode
+- Credential CRUD surfaced inside project detail, not as a top-level menu:
+  - Removed `Credentials` from sidebar nav; `/credentials` redirects to `/projects`
+  - Created `app/(app)/projects/[projectId]/credentials/new/page.tsx` — Add Credential page scoped to a project
+  - Created `app/(app)/projects/[projectId]/credentials/[credentialId]/edit/page.tsx` — Edit Credential page
+  - Created `components/projects/ProjectCredentialsList.tsx` — Client Component: groups credentials by environment, inline delete, edit links, uses `CredentialCard`
+  - Updated `app/(app)/projects/[projectId]/page.tsx` — fetches real credentials, shows credential count, wires `ProjectCredentialsList` and "Add credential" button
+  - Updated `CredentialForm` to accept `returnUrl` prop; updated `CredentialCard` to accept `editUrl` prop
+
+## Completed (Feature 11 — CRUD Projects)
+
+- Added `Project` model to `prisma/schema.prisma` with `Division` back-relation; ran `prisma migrate dev --name add-project-model`
+- Created `lib/auth.ts` — exports `getUserDivisionIds(clerkId)` and `getUserRoleInDivision(clerkId, divisionId)` helpers
+- Created `lib/validations/project.ts` — `createProjectSchema`, `updateProjectSchema`, `CreateProjectInput`, `UpdateProjectInput`
+- Installed shadcn components: `dropdown-menu`, `alert-dialog`, `textarea`, `sonner`
+- Created `app/api/projects/route.ts` — `GET` (list by division, membership-scoped) and `POST` (create, admin-only)
+- Created `app/api/projects/[id]/route.ts` — `PATCH` (update, owner/admin) and `DELETE` (owner-only, 204)
+- Created `components/projects/credential-types.ts` — extracted `credentialTypeConfig` from mock-data
+- Created `components/projects/ProjectCard.tsx` — real `Project` type, three-dot `DropdownMenu` for edit/delete, role-gated affordances
+- Created `components/projects/CreateProjectDialog.tsx` — React Hook Form + Zod, shadcn `Dialog`, environment `Select`
+- Created `components/projects/EditProjectDialog.tsx` — pre-filled from project, PATCH on submit
+- Created `components/projects/DeleteProjectDialog.tsx` — `AlertDialog` with error display, 204 on confirm
+- Created `components/projects/ProjectListSkeleton.tsx` — 6-card loading skeleton
+- Rewrote `app/(app)/projects/page.tsx` as Client Component — reads active division from `localStorage`, fetches real API, role-gated create/edit/delete, empty state, search filter, division-change listener
+- Updated `app/(app)/projects/[projectId]/page.tsx` — loads real `Project` from Prisma, verifies division membership, shows empty credential state
+- Updated `components/projects/ProjectCredentialsAccordion.tsx` — imports from `credential-types.ts` instead of deleted mock-data, added empty state
+- Deleted `app/(app)/projects/mock-data.ts` — all mock data removed
+
 ## Next Up
 
 - Polish member invite/role affordances once a real data layer exists

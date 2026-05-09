@@ -16,6 +16,51 @@ model Division {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
   memberships DivisionMembership[]
+  projects    Project[]
+}
+
+model Project {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  environment String       @default("development")
+  divisionId  String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  division    Division     @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  credentials Credential[]
+}
+
+model Credential {
+  id          String            @id @default(cuid())
+  name        String
+  environment String            @default("development")
+  projectId   String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fields      CredentialField[]
+  auditLogs   AuditLog[]
+}
+
+model CredentialField {
+  id             String     @id @default(cuid())
+  key            String
+  encryptedValue String
+  secret         Boolean    @default(false)
+  credentialId   String
+  credential     Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  actorId      String
+  action       AuditAction
+  credentialId String?
+  divisionId   String?
+  metadata     Json?
+  timestamp    DateTime    @default(now())
+  credential   Credential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
 }
 
 model DivisionMembership {
@@ -35,4 +80,11 @@ enum Role {
   DIVISION_OWNER
   DIVISION_ADMIN
   MEMBER
+}
+
+enum AuditAction {
+  CREDENTIAL_CREATE
+  CREDENTIAL_UPDATE
+  CREDENTIAL_DELETE
+  CREDENTIAL_VIEW
 }

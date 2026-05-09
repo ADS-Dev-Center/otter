@@ -1,24 +1,21 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 import {
   ArrowLeft,
-  Copy,
-  Eye,
   FolderLock,
   Key,
   UsersThree,
   CalendarBlank,
-  Tag,
+  Plus,
 } from "@phosphor-icons/react/dist/ssr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  credentialTypeConfig,
-  getProjectById,
-  getProjectCredentials,
-} from "../mock-data";
-import { ProjectCredentialsAccordion } from "@/components/projects/ProjectCredentialsAccordion";
+import { prisma } from "@/lib/prisma";
+import { getUserDivisionIds, getUserRoleInDivision } from "@/lib/auth";
+import { getDivisionPalette } from "@/lib/divisions";
+import { ProjectCredentialsList } from "@/components/projects/ProjectCredentialsList";
 
 interface ProjectPageProps {
   params: Promise<{ projectId: string }>;
@@ -26,27 +23,44 @@ interface ProjectPageProps {
 
 export default async function ProjectDetailPage({ params }: ProjectPageProps) {
   const { projectId } = await params;
-  const project = getProjectById(projectId);
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
 
-  if (!project) {
-    notFound();
-  }
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      division: {
+        include: { _count: { select: { memberships: true } } },
+      },
+      credentials: {
+        include: {
+          fields: { select: { id: true, key: true, secret: true, credentialId: true } },
+          project: { select: { id: true, name: true, divisionId: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
 
-  const credentials = getProjectCredentials(project.id);
-  const environmentOrder = [
-    "production",
-    "development",
-    "staging",
-    "shared",
-  ] as const;
-  const groupedCredentials = environmentOrder
-    .map((environment) => ({
-      environment,
-      items: credentials.filter(
-        (credential) => credential.environment === environment,
-      ),
-    }))
-    .filter((group) => group.items.length > 0);
+  if (!project) notFound();
+
+  const divisionIds = await getUserDivisionIds(userId);
+  if (!divisionIds.includes(project.divisionId)) notFound();
+
+  const role = await getUserRoleInDivision(userId, project.divisionId);
+
+  const divisionIndex = divisionIds.indexOf(project.divisionId);
+  const palette = getDivisionPalette(divisionIndex === -1 ? 0 : divisionIndex);
+
+  const badgeClass =
+    palette.accentColor === "teal"
+      ? "border-[rgba(45,212,191,0.3)] text-(--accent-teal) bg-[rgba(45,212,191,0.08)]"
+      : palette.accentColor === "amber"
+        ? "border-[rgba(245,166,35,0.3)] text-(--accent-amber) bg-[rgba(245,166,35,0.08)]"
+        : "border-[rgba(77,142,255,0.3)] text-(--accent-primary) bg-[rgba(77,142,255,0.08)]";
+
+  const canEdit =
+    role === "DIVISION_OWNER" || role === "DIVISION_ADMIN" || role === "SUPER_ADMIN";
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,66 +77,55 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
             <div
               className={cn(
                 "flex size-11 items-center justify-center rounded-xl",
-                project.divisionIconBgClass,
+                palette.iconBgClass,
               )}
             >
-              <FolderLock
-                weight="duotone"
-                size={22}
-                color={project.divisionIconColor}
-              />
+              <FolderLock weight="duotone" size={22} color={palette.iconColor} />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-(--text-primary)">
                 {project.name}
               </h1>
-              <p className="mt-1 text-sm text-(--text-muted)">
-                {project.description}
-              </p>
+              {project.description && (
+                <p className="mt-1 text-sm text-(--text-muted)">{project.description}</p>
+              )}
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Badge
               variant="outline"
-              className={cn(
-                "text-[10px] px-1.5 py-0",
-                project.divisionBadgeClass,
-              )}
+              className={cn("text-[10px] px-1.5 py-0", badgeClass)}
             >
-              {project.division}
+              {project.division.name}
             </Badge>
             <Badge
               variant="outline"
               className="border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)] text-(--text-subtle)"
             >
-              {project.status}
+              {project.environment}
             </Badge>
           </div>
         </div>
 
-        <div className="flex gap-3">
-          <Button className="rounded-lg">
-            <Key weight="duotone" size={14} />
-            Add Credential
+        {canEdit && (
+          <Button asChild className="rounded-lg bg-(--button-liquid-bg) hover:bg-(--button-liquid-bg-hover) border border-(--button-liquid-border) text-(--text-primary)">
+            <Link href={`/projects/${projectId}/credentials/new`}>
+              <Plus weight="duotone" size={14} className="mr-1.5" />
+              Add credential
+            </Link>
           </Button>
-          <Button variant="ghost" className="rounded-lg">
-            <Eye weight="duotone" size={14} />
-            Reveal preview
-          </Button>
-        </div>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="glass rounded-xl p-4">
           <div className="flex items-center gap-2 text-(--text-muted)">
             <Key weight="duotone" size={16} />
-            <span className="text-xs uppercase tracking-[0.18em]">
-              Credentials
-            </span>
+            <span className="text-xs uppercase tracking-[0.18em]">Credentials</span>
           </div>
           <p className="mt-3 text-3xl font-bold text-(--text-primary)">
-            {project.credentialCount}
+            {project.credentials.length}
           </p>
         </div>
         <div className="glass rounded-xl p-4">
@@ -131,7 +134,7 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
             <span className="text-xs uppercase tracking-[0.18em]">Members</span>
           </div>
           <p className="mt-3 text-3xl font-bold text-(--text-primary)">
-            {project.memberCount}
+            {project.division._count.memberships}
           </p>
         </div>
         <div className="glass rounded-xl p-4">
@@ -139,8 +142,12 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
             <CalendarBlank weight="duotone" size={16} />
             <span className="text-xs uppercase tracking-[0.18em]">Updated</span>
           </div>
-          <p className="mt-3 text-3xl font-bold text-(--text-primary)">
-            {project.lastUpdated}
+          <p className="mt-3 text-xl font-bold text-(--text-primary)">
+            {new Date(project.updatedAt).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
           </p>
         </div>
       </div>
@@ -163,7 +170,11 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
           </Badge>
         </div>
 
-        <ProjectCredentialsAccordion groups={groupedCredentials} />
+        <ProjectCredentialsList
+          projectId={projectId}
+          initialCredentials={project.credentials}
+          canEdit={canEdit}
+        />
       </div>
     </div>
   );

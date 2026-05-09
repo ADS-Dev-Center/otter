@@ -12,17 +12,18 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   credentialTypeConfig,
-  type MockCredential,
-} from "@/app/(app)/projects/mock-data";
+  type CredentialType,
+  type CredentialEnvironment,
+} from "@/components/projects/credential-types";
 
-const environmentLabel = {
+const environmentLabel: Record<CredentialEnvironment, string> = {
   production: "Production",
   development: "Development",
   staging: "Staging",
   shared: "Shared",
-} as const;
+};
 
-const environmentBadgeClass = {
+const environmentBadgeClass: Record<CredentialEnvironment, string> = {
   production:
     "border-[rgba(244,68,56,0.30)] bg-[rgba(244,68,56,0.08)] text-[var(--state-error)]",
   development:
@@ -31,13 +32,21 @@ const environmentBadgeClass = {
     "border-[rgba(245,166,35,0.30)] bg-[rgba(245,166,35,0.08)] text-(--accent-amber)",
   shared:
     "border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)] text-(--text-subtle)",
-} as const;
+};
 
-type CredentialEnvironment = keyof typeof environmentLabel;
+export interface CredentialItem {
+  name: string;
+  type: CredentialType;
+  environment: CredentialEnvironment;
+  maskedValue: string;
+  description: string;
+  tags: string[];
+  updated: string;
+}
 
 interface CredentialGroup {
   environment: CredentialEnvironment;
-  items: MockCredential[];
+  items: CredentialItem[];
 }
 
 interface ProjectCredentialsAccordionProps {
@@ -49,6 +58,19 @@ export function ProjectCredentialsAccordion({
 }: ProjectCredentialsAccordionProps) {
   const [openEnvironment, setOpenEnvironment] =
     useState<CredentialEnvironment | null>(groups[0]?.environment ?? null);
+
+  if (groups.length === 0) {
+    return (
+      <div className="p-10 flex flex-col items-center gap-3 text-center">
+        <p className="text-sm font-semibold text-(--text-primary)">
+          No credentials yet
+        </p>
+        <p className="text-xs text-(--text-muted)">
+          Add credentials to this project to get started.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 p-5">
@@ -167,12 +189,13 @@ export function ProjectCredentialsAccordion({
                         </p>
 
                         <div className="mt-4 flex flex-wrap items-center gap-2 text-[10px] text-(--text-muted)">
-                          {Array.isArray(credential.tags) && credential.tags.length > 0 && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-(--glass-border-subtle) px-2 py-1">
-                              <Tag weight="duotone" size={12} />
-                              {credential.tags.join(", ")}
-                            </span>
-                          )}
+                          {Array.isArray(credential.tags) &&
+                            credential.tags.length > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-(--glass-border-subtle) px-2 py-1">
+                                <Tag weight="duotone" size={12} />
+                                {credential.tags.join(", ")}
+                              </span>
+                            )}
                           <span className="inline-flex items-center gap-1 rounded-full border border-(--glass-border-subtle) px-2 py-1">
                             <CalendarBlank weight="duotone" size={12} />
                             Updated {credential.updated}
