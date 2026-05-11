@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { GlassInput } from "@/components/ui/glass-input";
 import { toast } from "sonner";
 
 type Props = {
@@ -182,14 +182,13 @@ export function EditProfileDialog({
           <label className="text-xs font-medium text-(--text-subtle)">
             Full name
           </label>
-          <Input
+          <GlassInput
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") void handleSave();
             }}
             placeholder="Your name"
-            className="glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary)"
           />
         </div>
 

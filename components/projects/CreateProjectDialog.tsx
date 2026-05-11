@@ -3,21 +3,16 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { GlassDialog } from "@/components/ui/glass-dialog";
+import { FormField } from "@/components/ui/form-field";
+import { FieldType } from "@/components/ui/field-input";
 import { toast } from "sonner";
 import {
   createProjectFormSchema,
   type CreateProjectFormInput,
 } from "@/lib/validations/project";
+import { createProjectAction } from "@/app/actions/projects";
 import type { Project } from "@/types/project";
 
 interface CreateProjectDialogProps {
@@ -48,43 +43,26 @@ export function CreateProjectDialog({
     setServerError("");
 
     if (!divisionId) {
-      setServerError("No active division selected. Please select a division first.");
+      setServerError(
+        "No active division selected. Please select a division first.",
+      );
       return;
     }
 
     try {
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, divisionId }),
-      });
+      const result = await createProjectAction({ ...data, divisionId });
 
-      let json: { data?: Project; error?: { message: string } };
-      try {
-        json = (await res.json()) as typeof json;
-      } catch {
-        const msg = "Unexpected server response. Please try again.";
+      if (!result.ok) {
+        const msg = result.error.message;
         setServerError(msg);
         toast.error("Failed to create project", { description: msg });
-        return;
-      }
-
-      if (!res.ok) {
-        const msg = json.error?.message ?? `Request failed (${res.status})`;
-        setServerError(msg);
-        toast.error("Failed to create project", { description: msg });
-        return;
-      }
-
-      if (!json.data) {
-        setServerError("No data returned from server.");
         return;
       }
 
       reset();
       onOpenChange(false);
-      onCreated(json.data);
-      toast.success("Project created", { description: json.data.name });
+      onCreated(result.data as Project);
+      toast.success("Project created", { description: result.data.name });
     } catch {
       const msg = "Network error. Please check your connection and try again.";
       setServerError(msg);
@@ -99,65 +77,62 @@ export function CreateProjectDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="glass-heavy rounded-2xl border-(--glass-border) sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-(--text-primary)">
-            Create Project
-          </DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-(--text-subtle)">
-              Project Name <span className="text-(--state-error)">*</span>
-            </label>
-            <Input
-              {...register("name")}
-              placeholder="e.g. API Gateway"
-              className="glass rounded-lg border-(--glass-border) text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary) bg-transparent"
-            />
-            {errors.name && (
-              <p className="text-xs text-(--state-error)">{errors.name.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-(--text-subtle)">
-              Description
-            </label>
-            <Textarea
-              {...register("description")}
-              placeholder="Brief description of this project"
-              rows={3}
-              className="glass rounded-lg border-(--glass-border) text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary) bg-transparent resize-none"
-            />
-            {errors.description && (
-              <p className="text-xs text-(--state-error)">
-                {errors.description.message}
-              </p>
-            )}
-          </div>
-
-          {serverError && (
-            <p className="text-xs text-(--state-error)">{serverError}</p>
-          )}
-
-          <DialogFooter className="gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              className="rounded-lg"
-              onClick={() => handleOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" className="rounded-lg" disabled={isSubmitting}>
-              {isSubmitting ? "Creating…" : "Create Project"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <GlassDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Create Project"
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            className="rounded-lg"
+            onClick={() => handleOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="create-project-form"
+            className="rounded-lg"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Creating…" : "Create Project"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="create-project-form"
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-4 mt-2"
+      >
+        <FormField
+          field={{
+            type: FieldType.TEXT,
+            name: "name",
+            label: "Project Name",
+            placeholder: "e.g. API Gateway",
+            required: true,
+          }}
+          registration={register("name")}
+          error={errors.name?.message}
+        />
+        <FormField
+          field={{
+            type: FieldType.TEXTAREA,
+            name: "description",
+            label: "Description",
+            placeholder: "Brief description of this project",
+            rows: 3,
+          }}
+          registration={register("description")}
+          error={errors.description?.message}
+        />
+        {serverError && (
+          <p className="text-xs text-(--state-error)">{serverError}</p>
+        )}
+      </form>
+    </GlassDialog>
   );
 }

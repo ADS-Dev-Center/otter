@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/layout/AppShell";
+import { getDivisionMembershipCount } from "@/lib/services/division.service";
 
 export default async function AppLayout({
   children,
@@ -11,9 +11,7 @@ export default async function AppLayout({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const membershipCount = await prisma.divisionMembership.count({
-    where: { clerkId: userId },
-  });
+  const membershipCount = await getDivisionMembershipCount(userId);
 
   if (membershipCount === 0) redirect("/onboarding");
 

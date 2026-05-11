@@ -1,9 +1,11 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { createDivisionSchema } from "@/lib/validations/division";
-import { getDivisionPalette } from "@/lib/divisions";
-import { writeAuditLog } from "@/lib/audit";
+import { isDomainError, toFieldErrors } from "@/lib/errors";
+import {
+  createDivision,
+  listDivisionsForUser,
+} from "@/lib/services/division.service";
 
 export async function GET() {
   const { userId } = await auth();
@@ -14,66 +16,25 @@ export async function GET() {
     );
   }
 
-  const memberships = await prisma.divisionMembership.findMany({
-    where: { clerkId: userId },
-    include: {
-      division: {
-        include: {
-          _count: { select: { memberships: true } },
-          memberships: { take: 4, orderBy: { createdAt: "asc" } },
-        },
-      },
-    },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const client = await clerkClient();
-
-  const divisions = await Promise.all(
-    memberships.map(async (m, index) => {
-      const palette = getDivisionPalette(index);
-      const memberCount = m.division._count.memberships;
-      const members = await Promise.all(
-        m.division.memberships.slice(0, 4).map(async (membership) => {
-          try {
-            const user = await client.users.getUser(membership.clerkId);
-            const initials =
-              `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`
-                .toUpperCase()
-                .trim();
-
-            return {
-              initials: initials || "??",
-              imageUrl: user.imageUrl ?? null,
-              gradientFrom: palette.gradientFrom,
-              gradientTo: palette.gradientTo,
-            };
-          } catch {
-            return {
-              initials: "??",
-              imageUrl: null,
-              gradientFrom: palette.gradientFrom,
-              gradientTo: palette.gradientTo,
-            };
-          }
-        }),
+  try {
+    const divisions = await listDivisionsForUser(userId);
+    return NextResponse.json({ data: divisions });
+  } catch (err) {
+    if (isDomainError(err)) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
       );
+    }
 
-      return {
-        id: m.division.id,
-        name: m.division.name,
-        role: m.role,
-        memberCount,
-        iconBgClass: palette.iconBgClass,
-        iconColor: palette.iconColor,
-        accentBarClass: palette.accentBarClass,
-        accentColor: palette.accentColor,
-        members,
-      };
-    }),
-  );
-
-  return NextResponse.json({ data: divisions });
+    console.error("[GET /api/divisions]", err);
+    return NextResponse.json(
+      {
+        error: { code: "INTERNAL_ERROR", message: "Failed to fetch divisions" },
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(req: Request) {
@@ -88,40 +49,30 @@ export async function POST(req: Request) {
   const body: unknown = await req.json();
   const result = createDivisionSchema.safeParse(body);
   if (!result.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const issue of result.error.issues) {
-      const key = issue.path.join(".") || "_";
-      fieldErrors[key] = fieldErrors[key] || [];
-      fieldErrors[key].push(issue.message);
-    }
-
     return NextResponse.json(
       {
         error: {
           code: "VALIDATION_ERROR",
           message: "Validation failed",
-          fieldErrors,
+          fieldErrors: toFieldErrors(result.error),
         },
       },
       { status: 400 },
     );
   }
 
-  let division;
   try {
-    division = await prisma.division.create({
-      data: {
-        name: result.data.name,
-        memberships: {
-          create: {
-            clerkId: userId,
-            role: "DIVISION_OWNER",
-          },
-        },
-      },
-    });
+    const division = await createDivision(userId, result.data);
+    return NextResponse.json({ data: division }, { status: 201 });
   } catch (err) {
-    console.error("[POST /api/divisions] create failed:", err);
+    if (isDomainError(err)) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
+      );
+    }
+
+    console.error("[POST /api/divisions]", err);
     return NextResponse.json(
       {
         error: { code: "INTERNAL_ERROR", message: "Failed to create division" },
@@ -129,19 +80,4 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
-
-  try {
-    await writeAuditLog({
-      actorId: userId,
-      action: "DIVISION_CREATE",
-      resourceType: "DIVISION",
-      resourceId: division.id,
-      resourceName: division.name,
-      divisionId: division.id,
-    });
-  } catch (err) {
-    console.error("[POST /api/divisions] audit log failed (non-fatal):", err);
-  }
-
-  return NextResponse.json({ data: division }, { status: 201 });
 }

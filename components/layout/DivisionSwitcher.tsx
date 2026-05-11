@@ -4,30 +4,35 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Buildings, CaretRight, Plus } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { GlassDialog } from "@/components/ui/glass-dialog";
+import { GlassInput } from "@/components/ui/glass-input";
 import {
   ACTIVE_DIVISION_STORAGE_KEY,
   DIVISION_CONTEXT_EVENT,
   type Division,
   type MockMember,
 } from "@/lib/divisions";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { createDivisionAction } from "@/app/actions/divisions";
 
-function MemberAvatar({ member, size = 5 }: { member: MockMember; size?: number }) {
+function MemberAvatar({
+  member,
+  size = 5,
+}: {
+  member: MockMember;
+  size?: number;
+}) {
   const sizeClass = size === 4 ? "size-4 text-[6px]" : "size-5 text-[7px]";
   if (member.imageUrl) {
     return (
       <img
         src={member.imageUrl}
         alt={member.initials}
-        className={cn(sizeClass, "rounded-full object-cover ring-1 ring-(--glass-border-subtle) shrink-0")}
+        className={cn(
+          sizeClass,
+          "rounded-full object-cover ring-1 ring-(--glass-border-subtle) shrink-0",
+        )}
       />
     );
   }
@@ -44,8 +49,6 @@ function MemberAvatar({ member, size = 5 }: { member: MockMember; size?: number 
     </div>
   );
 }
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 interface DivisionSwitcherProps {
   onDivisionChange?: (divisionId: string) => void;
@@ -136,14 +139,9 @@ export default function DivisionSwitcher({
     setIsCreating(true);
     setCreateError("");
     try {
-      const res = await fetch("/api/divisions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmedName }),
-      });
-      if (!res.ok) {
-        const json = (await res.json()) as { error?: { message?: string } };
-        const msg = json.error?.message ?? "Failed to create division";
+      const result = await createDivisionAction({ name: trimmedName });
+      if (!result.ok) {
+        const msg = result.error?.message ?? "Failed to create division";
         setCreateError(msg);
         toast.error("Failed to create division", { description: msg });
         return;
@@ -319,73 +317,63 @@ export default function DivisionSwitcher({
         </div>
       )}
 
-      {isCreateOpen && (
-        <Dialog
-          open={isCreateOpen}
-          onOpenChange={(open) => {
-            setIsCreateOpen(open);
-            if (!open) setNewDivisionName("");
-          }}
-        >
-          <DialogContent className="glass-heavy max-w-md rounded-2xl border-(--glass-border) bg-(--glass-bg-raised) p-5 text-(--text-primary)">
-            <DialogHeader>
-              <DialogTitle className="text-lg text-(--text-primary)">
-                Create Division
-              </DialogTitle>
-              <DialogDescription className="text-(--text-muted)">
-                Your active division stays unchanged after creating a new one.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-(--text-subtle)">
-                  Division Name
-                </label>
-                <Input
-                  value={newDivisionName}
-                  onChange={(e) => setNewDivisionName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newDivisionName.trim()) {
-                      void handleCreateDivision();
-                    }
-                  }}
-                  placeholder="e.g. Security Division"
-                  className="glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary)"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            {createError && (
-              <p className="text-xs text-(--state-error) bg-[rgba(240,68,56,0.08)] border border-[rgba(240,68,56,0.2)] rounded-lg px-3 py-2">
-                {createError}
-              </p>
-            )}
-            <DialogFooter className="gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setIsCreateOpen(false);
-                  setCreateError("");
-                }}
-                className="text-(--text-subtle) hover:bg-(--glass-bg-hover) hover:text-(--text-primary)"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={() => void handleCreateDivision()}
-                disabled={!newDivisionName.trim() || isCreating}
-                className="rounded-lg"
-              >
-                {isCreating ? "Creating…" : "Create Division"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <GlassDialog
+        open={isCreateOpen}
+        onOpenChange={(open) => {
+          setIsCreateOpen(open);
+          if (!open) {
+            setNewDivisionName("");
+            setCreateError("");
+          }
+        }}
+        title="Create Division"
+        description="Your active division stays unchanged after creating a new one."
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setIsCreateOpen(false);
+                setCreateError("");
+              }}
+              className="text-(--text-subtle) hover:bg-(--glass-bg-hover) hover:text-(--text-primary)"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleCreateDivision()}
+              disabled={!newDivisionName.trim() || isCreating}
+              className="rounded-lg"
+            >
+              {isCreating ? "Creating…" : "Create Division"}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-(--text-subtle)">
+            Division Name
+          </label>
+          <GlassInput
+            value={newDivisionName}
+            onChange={(e) => setNewDivisionName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newDivisionName.trim()) {
+                void handleCreateDivision();
+              }
+            }}
+            placeholder="e.g. Security Division"
+            autoFocus
+          />
+        </div>
+        {createError && (
+          <p className="text-xs text-(--state-error) bg-[rgba(240,68,56,0.08)] border border-[rgba(240,68,56,0.2)] rounded-lg px-3 py-2">
+            {createError}
+          </p>
+        )}
+      </GlassDialog>
     </div>
   );
 }

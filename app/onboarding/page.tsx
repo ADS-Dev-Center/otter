@@ -21,7 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { GlassInput } from "@/components/ui/glass-input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -31,6 +31,8 @@ import {
   type CreateDivisionInput,
 } from "@/lib/validations/division";
 import { ACTIVE_DIVISION_STORAGE_KEY } from "@/lib/divisions";
+import { createDivisionAction } from "@/app/actions/divisions";
+import { inviteMemberAction } from "@/app/actions/members";
 
 type InviteRole = "DIVISION_ADMIN" | "MEMBER";
 
@@ -94,17 +96,11 @@ export default function OnboardingPage() {
     setIsSubmitting(true);
     setFormError("");
     try {
-      const res = await fetch("/api/divisions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`Failed to create division (${res.status}): ${body}`);
+      const result = await createDivisionAction(data);
+      if (!result.ok) {
+        throw new Error(result.error.message || "Failed to create division");
       }
-      const json = (await res.json()) as { data?: { id?: string } };
-      const id = json.data?.id;
+      const id = result.data?.id;
       if (id) {
         if (typeof window !== "undefined") {
           window.localStorage.setItem(ACTIVE_DIVISION_STORAGE_KEY, id);
@@ -136,22 +132,17 @@ export default function OnboardingPage() {
     setInviting(true);
 
     try {
-      const res = await fetch("/api/members/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role: inviteRole, divisionId }),
+      const result = await inviteMemberAction({
+        email,
+        role: inviteRole,
+        divisionId,
       });
 
-      const json = (await res.json()) as {
-        data?: { status: string };
-        error?: { code: string; message: string };
-      };
-
-      if (!res.ok) {
-        if (res.status === 409) {
+      if (!result.ok) {
+        if (result.error.code === "CONFLICT") {
           setInviteError("This person is already a member of the division.");
         } else {
-          setInviteError(json.error?.message ?? "Invite failed. Try again.");
+          setInviteError(result.error.message ?? "Invite failed. Try again.");
         }
         return;
       }
@@ -161,7 +152,7 @@ export default function OnboardingPage() {
         {
           email,
           role: inviteRole,
-          status: json.data?.status === "added" ? "added" : "pending",
+          status: result.data?.status === "added" ? "added" : "pending",
         },
       ]);
       setInviteEmail("");
@@ -254,10 +245,9 @@ export default function OnboardingPage() {
                 <label className="text-xs font-medium text-(--text-subtle)">
                   Division name
                 </label>
-                <Input
+                <GlassInput
                   {...register("name")}
                   placeholder="e.g. Engineering Division"
-                  className="glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) placeholder:text-(--text-muted) focus-visible:border-(--accent-primary) focus-visible:ring-[rgba(77,142,255,0.4)]"
                   autoFocus
                 />
                 {errors.name && (
@@ -321,12 +311,12 @@ export default function OnboardingPage() {
                       color="var(--text-muted)"
                       className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
                     />
-                    <Input
+                    <GlassInput
                       type="email"
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
                       placeholder="teammate@company.com"
-                      className="glass rounded-lg border-(--glass-border) bg-transparent pl-9 text-(--text-primary) placeholder:text-(--text-muted) focus-visible:border-(--accent-primary) focus-visible:ring-[rgba(77,142,255,0.4)]"
+                      className="pl-9"
                       required
                     />
                   </div>

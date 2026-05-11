@@ -1,10 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getUserDivisionIds, getUserRoleInDivision } from "@/lib/auth";
 import { createProjectSchema } from "@/lib/validations/project";
-import { toSlug } from "@/lib/slug";
-import { writeAuditLog } from "@/lib/audit";
+import { isDomainError, toFieldErrors } from "@/lib/errors";
+import {
+  createProjectForDivision,
+  listProjectsForUser,
+} from "@/lib/services/project.service";
 
 export async function GET(req: Request) {
   const { userId } = await auth();
@@ -16,34 +17,20 @@ export async function GET(req: Request) {
   }
 
   try {
-    const divisionIds = await getUserDivisionIds(userId);
     const { searchParams } = new URL(req.url);
     const divisionId = searchParams.get("divisionId");
 
-    let filteredIds = divisionIds;
-    if (divisionId) {
-      if (!divisionIds.includes(divisionId)) {
-        return NextResponse.json(
-          {
-            error: {
-              code: "FORBIDDEN",
-              message: "Not a member of this division",
-            },
-          },
-          { status: 403 },
-        );
-      }
-      filteredIds = [divisionId];
-    }
-
-    const projects = await prisma.project.findMany({
-      where: { divisionId: { in: filteredIds } },
-      include: { _count: { select: { credentials: true } } },
-      orderBy: { createdAt: "desc" },
-    });
+    const projects = await listProjectsForUser(userId, divisionId);
 
     return NextResponse.json({ data: projects });
   } catch (err) {
+    if (isDomainError(err)) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
+      );
+    }
+
     console.error("[GET /api/projects]", err);
     return NextResponse.json(
       {
@@ -71,84 +58,25 @@ export async function POST(req: Request) {
         error: {
           code: "VALIDATION_ERROR",
           message: "Validation failed",
-          fieldErrors: result.error.flatten().fieldErrors,
+          fieldErrors: toFieldErrors(result.error),
         },
       },
       { status: 400 },
     );
   }
 
-  const role = await getUserRoleInDivision(userId, result.data.divisionId);
-  if (
-    role !== "DIVISION_OWNER" &&
-    role !== "DIVISION_ADMIN" &&
-    role !== "SUPER_ADMIN"
-  ) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "FORBIDDEN",
-          message: "Only admins can create projects",
-        },
-      },
-      { status: 403 },
-    );
-  }
-
-  const slug = toSlug(result.data.name);
-
   try {
-    const existing = await prisma.project.findUnique({ where: { slug } });
-    if (existing) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "CONFLICT",
-            message: "A project with this name already exists",
-          },
-        },
-        { status: 409 },
-      );
-    }
-
-    let project;
-    try {
-      project = await prisma.project.create({
-        data: {
-          slug,
-          name: result.data.name,
-          description: result.data.description,
-          divisionId: result.data.divisionId,
-        },
-        include: { _count: { select: { credentials: true } } },
-      });
-    } catch (e) {
-      // Handle unique constraint race (slug already created between check and create)
-      if ((e as any)?.code === "P2002") {
-        return NextResponse.json(
-          {
-            error: {
-              code: "CONFLICT",
-              message: "A project with this name already exists",
-            },
-          },
-          { status: 409 },
-        );
-      }
-      throw e;
-    }
-
-    await writeAuditLog({
-      actorId: userId,
-      action: "PROJECT_CREATE",
-      resourceType: "PROJECT",
-      resourceId: project.id,
-      resourceName: project.name,
-      divisionId: project.divisionId,
-    });
+    const project = await createProjectForDivision(userId, result.data);
 
     return NextResponse.json({ data: project }, { status: 201 });
   } catch (err) {
+    if (isDomainError(err)) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
+      );
+    }
+
     console.error("[POST /api/projects]", err);
     return NextResponse.json(
       {

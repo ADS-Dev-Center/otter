@@ -1,29 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getUserDivisionIds, getUserRoleInDivision } from "@/lib/auth";
-import { encryptToString } from "@/lib/crypto";
 import { updateCredentialSchema } from "@/lib/validations/credential";
-import { writeAuditLog } from "@/lib/audit";
-
-async function resolveCredential(id: string, userId: string) {
-  const credential = await prisma.credential.findUnique({
-    where: { id },
-    include: {
-      project: { select: { divisionId: true } },
-      fields: { select: { id: true, key: true, secret: true, credentialId: true } },
-    },
-  });
-  if (!credential) return { credential: null, role: null, divisionId: null };
-
-  const divisionIds = await getUserDivisionIds(userId);
-  if (!divisionIds.includes(credential.project.divisionId)) {
-    return { credential: null, role: null, divisionId: null };
-  }
-
-  const role = await getUserRoleInDivision(userId, credential.project.divisionId);
-  return { credential, role, divisionId: credential.project.divisionId };
-}
+import { isDomainError, toFieldErrors } from "@/lib/errors";
+import {
+  deleteCredentialById,
+  getCredentialById,
+  updateCredentialById,
+} from "@/lib/services/credential.service";
 
 export async function GET(
   _req: Request,
@@ -37,16 +20,29 @@ export async function GET(
     );
   }
 
-  const { id } = await params;
-  const { credential } = await resolveCredential(id, userId);
-  if (!credential) {
+  try {
+    const { id } = await params;
+    const credential = await getCredentialById(userId, id);
+    return NextResponse.json({ data: credential });
+  } catch (err) {
+    if (isDomainError(err)) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
+      );
+    }
+
+    console.error("[GET /api/credentials/[id]]", err);
     return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Credential not found" } },
-      { status: 404 },
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to fetch credential",
+        },
+      },
+      { status: 500 },
     );
   }
-
-  return NextResponse.json({ data: credential });
 }
 
 export async function PUT(
@@ -61,22 +57,6 @@ export async function PUT(
     );
   }
 
-  const { id } = await params;
-  const { credential, role, divisionId } = await resolveCredential(id, userId);
-  if (!credential) {
-    return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Credential not found" } },
-      { status: 404 },
-    );
-  }
-
-  if (role !== "DIVISION_OWNER" && role !== "DIVISION_ADMIN") {
-    return NextResponse.json(
-      { error: { code: "FORBIDDEN", message: "Only admins can update credentials" } },
-      { status: 403 },
-    );
-  }
-
   const body: unknown = await req.json();
   const result = updateCredentialSchema.safeParse(body);
   if (!result.success) {
@@ -85,7 +65,7 @@ export async function PUT(
         error: {
           code: "VALIDATION_ERROR",
           message: "Validation failed",
-          fieldErrors: result.error.flatten().fieldErrors,
+          fieldErrors: toFieldErrors(result.error),
         },
       },
       { status: 400 },
@@ -93,52 +73,26 @@ export async function PUT(
   }
 
   try {
-    const updated = await prisma.$transaction(async (tx) => {
-      if (result.data.fields !== undefined) {
-        await tx.credentialField.deleteMany({ where: { credentialId: id } });
-        await tx.credentialField.createMany({
-          data: result.data.fields.map((f) => ({
-            key: f.key,
-            encryptedValue: encryptToString(f.value),
-            secret: f.secret ?? false,
-            credentialId: id,
-          })),
-        });
-      }
-
-      return tx.credential.update({
-        where: { id },
-        data: {
-          ...(result.data.name !== undefined && { name: result.data.name }),
-          ...(result.data.environment !== undefined && { environment: result.data.environment }),
-        },
-        include: {
-          fields: { select: { id: true, key: true, secret: true, credentialId: true } },
-        },
-      });
-    });
-
-    await Promise.all([
-      writeAuditLog({
-        actorId: userId,
-        action: "CREDENTIAL_UPDATE",
-        resourceType: "CREDENTIAL",
-        resourceId: id,
-        resourceName: credential.name,
-        credentialId: id,
-        divisionId: divisionId ?? undefined,
-      }),
-      prisma.project.update({
-        where: { id: credential.projectId },
-        data: { updatedAt: new Date() },
-      }),
-    ]);
+    const { id } = await params;
+    const updated = await updateCredentialById(userId, id, result.data);
 
     return NextResponse.json({ data: updated });
   } catch (err) {
+    if (isDomainError(err)) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
+      );
+    }
+
     console.error("[PUT /api/credentials/[id]]", err);
     return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: "Failed to update credential" } },
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to update credential",
+        },
+      },
       { status: 500 },
     );
   }
@@ -156,45 +110,26 @@ export async function DELETE(
     );
   }
 
-  const { id } = await params;
-  const { credential, role, divisionId } = await resolveCredential(id, userId);
-  if (!credential) {
-    return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Credential not found" } },
-      { status: 404 },
-    );
-  }
-
-  if (role !== "DIVISION_OWNER" && role !== "DIVISION_ADMIN") {
-    return NextResponse.json(
-      { error: { code: "FORBIDDEN", message: "Only admins can delete credentials" } },
-      { status: 403 },
-    );
-  }
-
   try {
-    await writeAuditLog({
-      actorId: userId,
-      action: "CREDENTIAL_DELETE",
-      resourceType: "CREDENTIAL",
-      resourceId: id,
-      resourceName: credential.name,
-      credentialId: id,
-      divisionId: divisionId ?? undefined,
-      metadata: { changeDescription: `Deleted credential "${credential.name}"` },
-    });
-
-    await prisma.credential.delete({ where: { id } });
-
-    await prisma.project.update({
-      where: { id: credential.projectId },
-      data: { updatedAt: new Date() },
-    });
+    const { id } = await params;
+    await deleteCredentialById(userId, id);
     return new NextResponse(null, { status: 204 });
   } catch (err) {
+    if (isDomainError(err)) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
+      );
+    }
+
     console.error("[DELETE /api/credentials/[id]]", err);
     return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: "Failed to delete credential" } },
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to delete credential",
+        },
+      },
       { status: 500 },
     );
   }

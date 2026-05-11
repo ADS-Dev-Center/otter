@@ -1,9 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getUserRoleInDivision } from "@/lib/auth";
 import { updateProjectSchema } from "@/lib/validations/project";
-import { writeAuditLog } from "@/lib/audit";
+import { isDomainError, MalformedJsonError, toFieldErrors } from "@/lib/errors";
+import {
+  deleteProjectById,
+  updateProjectById,
+} from "@/lib/services/project.service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -16,34 +18,10 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     );
   }
 
-  const { id } = await params;
-  const project = await prisma.project.findUnique({ where: { id } });
-  if (!project) {
-    return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Project not found" } },
-      { status: 404 },
-    );
-  }
-
-  const role = await getUserRoleInDivision(userId, project.divisionId);
-  if (
-    role !== "DIVISION_OWNER" &&
-    role !== "DIVISION_ADMIN" &&
-    role !== "SUPER_ADMIN"
-  ) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "FORBIDDEN",
-          message: "Only admins can update projects",
-        },
-      },
-      { status: 403 },
-    );
-  }
-
   try {
-    const body: unknown = await req.json();
+    const body: unknown = await req.json().catch(() => {
+      throw new MalformedJsonError();
+    });
     const result = updateProjectSchema.safeParse(body);
     if (!result.success) {
       return NextResponse.json(
@@ -51,41 +29,25 @@ export async function PATCH(req: Request, { params }: RouteContext) {
           error: {
             code: "VALIDATION_ERROR",
             message: "Validation failed",
-            fieldErrors: result.error.flatten().fieldErrors,
+            fieldErrors: toFieldErrors(result.error),
           },
         },
         { status: 400 },
       );
     }
 
-    const updated = await prisma.project.update({
-      where: { id },
-      data: result.data,
-    });
-
-    await writeAuditLog({
-      actorId: userId,
-      action: "PROJECT_UPDATE",
-      resourceType: "PROJECT",
-      resourceId: id,
-      resourceName: updated.name,
-      divisionId: project.divisionId,
-    });
+    const { id } = await params;
+    const updated = await updateProjectById(userId, id, result.data);
 
     return NextResponse.json({ data: updated });
   } catch (err) {
-    if (err instanceof SyntaxError) {
-      console.error("[PATCH /api/projects/[id]] JSON parse error:", err);
+    if (isDomainError(err)) {
       return NextResponse.json(
-        {
-          error: {
-            code: "MALFORMED_JSON",
-            message: "Invalid JSON in request body",
-          },
-        },
-        { status: 400 },
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
       );
     }
+
     console.error("[PATCH /api/projects/[id]]", err);
     return NextResponse.json(
       {
@@ -105,41 +67,18 @@ export async function DELETE(_req: Request, { params }: RouteContext) {
     );
   }
 
-  const { id } = await params;
-  const project = await prisma.project.findUnique({ where: { id } });
-  if (!project) {
-    return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Project not found" } },
-      { status: 404 },
-    );
-  }
-
-  const role = await getUserRoleInDivision(userId, project.divisionId);
-  if (role !== "DIVISION_OWNER" && role !== "SUPER_ADMIN") {
-    return NextResponse.json(
-      {
-        error: {
-          code: "FORBIDDEN",
-          message: "Only the division owner can delete projects",
-        },
-      },
-      { status: 403 },
-    );
-  }
-
   try {
-    await writeAuditLog({
-      actorId: userId,
-      action: "PROJECT_DELETE",
-      resourceType: "PROJECT",
-      resourceId: id,
-      resourceName: project.name,
-      divisionId: project.divisionId,
-    });
-
-    await prisma.project.delete({ where: { id } });
+    const { id } = await params;
+    await deleteProjectById(userId, id);
     return new NextResponse(null, { status: 204 });
   } catch (err) {
+    if (isDomainError(err)) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
+      );
+    }
+
     console.error("[DELETE /api/projects/[id]]", err);
     return NextResponse.json(
       {

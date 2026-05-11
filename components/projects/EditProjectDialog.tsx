@@ -3,21 +3,16 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { GlassDialog } from "@/components/ui/glass-dialog";
+import { FormField } from "@/components/ui/form-field";
+import { FieldType } from "@/components/ui/field-input";
 import { toast } from "sonner";
 import {
   updateProjectFormSchema,
   type UpdateProjectFormInput,
 } from "@/lib/validations/project";
+import { updateProjectAction } from "@/app/actions/projects";
 import type { Project } from "@/types/project";
 
 interface EditProjectDialogProps {
@@ -57,24 +52,19 @@ export function EditProjectDialog({
     if (!project) return;
     setServerError("");
     try {
-      const res = await fetch(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+      const result = await updateProjectAction({
+        projectId: project.id,
+        ...data,
       });
-      const json = (await res.json()) as
-        | { data: Project }
-        | { error: { message: string } };
 
-      if (!res.ok) {
-        const err = json as { error: { message: string } };
-        const msg = err.error?.message ?? "Failed to update project";
+      if (!result.ok) {
+        const msg = result.error.message;
         setServerError(msg);
         toast.error("Failed to update project", { description: msg });
         return;
       }
 
-      const updated = (json as { data: Project }).data;
+      const updated = result.data as Project;
       onOpenChange(false);
       onUpdated(updated);
       toast.success("Project updated", { description: updated.name });
@@ -91,69 +81,60 @@ export function EditProjectDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="glass-heavy rounded-2xl border-(--glass-border) sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-(--text-primary)">
-            Edit Project
-          </DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-(--text-subtle)">
-              Project Name <span className="text-(--state-error)">*</span>
-            </label>
-            <Input
-              {...register("name")}
-              className="glass rounded-lg border-(--glass-border) text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary) bg-transparent"
-            />
-            {errors.name && (
-              <p className="text-xs text-(--state-error)">
-                {errors.name.message}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-(--text-subtle)">
-              Description
-            </label>
-            <Textarea
-              {...register("description")}
-              rows={3}
-              className="glass rounded-lg border-(--glass-border) text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary) bg-transparent resize-none"
-            />
-            {errors.description && (
-              <p className="text-xs text-(--state-error)">
-                {errors.description.message}
-              </p>
-            )}
-          </div>
-
-          {serverError && (
-            <p className="text-xs text-(--state-error)">{serverError}</p>
-          )}
-
-          <DialogFooter className="gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              className="rounded-lg"
-              onClick={() => handleOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="rounded-lg"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Saving…" : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <GlassDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Edit Project"
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            className="rounded-lg"
+            onClick={() => handleOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="edit-project-form"
+            className="rounded-lg"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Saving…" : "Save Changes"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="edit-project-form"
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-4 mt-2"
+      >
+        <FormField
+          field={{
+            type: FieldType.TEXT,
+            name: "name",
+            label: "Project Name",
+            required: true,
+          }}
+          registration={register("name")}
+          error={errors.name?.message}
+        />
+        <FormField
+          field={{
+            type: FieldType.TEXTAREA,
+            name: "description",
+            label: "Description",
+            rows: 3,
+          }}
+          registration={register("description")}
+          error={errors.description?.message}
+        />
+        {serverError && (
+          <p className="text-xs text-(--state-error)">{serverError}</p>
+        )}
+      </form>
+    </GlassDialog>
   );
 }

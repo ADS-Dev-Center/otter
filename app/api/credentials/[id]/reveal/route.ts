@@ -1,9 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getUserDivisionIds } from "@/lib/auth";
-import { decryptFromString } from "@/lib/crypto";
-import { writeAuditLog } from "@/lib/audit";
+import { isDomainError } from "@/lib/errors";
+import { revealCredentialFields } from "@/lib/services/credential.service";
 
 export async function GET(
   _req: Request,
@@ -17,64 +15,27 @@ export async function GET(
     );
   }
 
-  const { id } = await params;
+  try {
+    const { id } = await params;
+    const decryptedFields = await revealCredentialFields(userId, id);
+    return NextResponse.json({ data: decryptedFields });
+  } catch (err) {
+    if (isDomainError(err)) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.statusCode },
+      );
+    }
 
-  const credential = await prisma.credential.findUnique({
-    where: { id },
-    include: {
-      project: { select: { divisionId: true } },
-      fields: true,
-    },
-  });
-
-  if (!credential) {
-    return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Credential not found" } },
-      { status: 404 },
-    );
-  }
-
-  const divisionIds = await getUserDivisionIds(userId);
-  if (!divisionIds.includes(credential.project.divisionId)) {
+    console.error("[GET /api/credentials/[id]/reveal]", err);
     return NextResponse.json(
       {
-        error: { code: "FORBIDDEN", message: "Not a member of this division" },
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to reveal credential",
+        },
       },
-      { status: 403 },
+      { status: 500 },
     );
   }
-
-  const decryptedFields = credential.fields.map((f) => {
-    try {
-      return {
-        id: f.id,
-        key: f.key,
-        value: decryptFromString(f.encryptedValue),
-        secret: f.secret,
-        credentialId: f.credentialId,
-      };
-    } catch (err) {
-      console.error(`[reveal] Failed to decrypt field ${f.id}:`, err);
-      return {
-        id: f.id,
-        key: f.key,
-        value: "",
-        secret: f.secret,
-        credentialId: f.credentialId,
-        decryptionFailed: true,
-      };
-    }
-  });
-
-  await writeAuditLog({
-    actorId: userId,
-    action: "CREDENTIAL_VIEW",
-    resourceType: "CREDENTIAL",
-    resourceId: id,
-    resourceName: credential.name,
-    credentialId: id,
-    divisionId: credential.project.divisionId,
-  });
-
-  return NextResponse.json({ data: decryptedFields });
 }

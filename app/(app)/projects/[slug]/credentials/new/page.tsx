@@ -3,9 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Key } from "@phosphor-icons/react/dist/ssr";
 import { Button } from "@/components/ui/button";
-import { prisma } from "@/lib/prisma";
-import { getUserDivisionIds, getUserRoleInDivision } from "@/lib/auth";
 import { CredentialForm } from "@/components/credentials/CredentialForm";
+import { getProjectForCredentialCreate } from "@/lib/services/project-page.service";
+import { isDomainError } from "@/lib/errors";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -17,20 +17,17 @@ export default async function NewProjectCredentialPage({ params }: Props) {
 
   const { slug } = await params;
 
-  const project = await prisma.project.findUnique({
-    where: { slug },
-    select: { id: true, name: true, divisionId: true },
-  });
-
-  if (!project) notFound();
-
-  const divisionIds = await getUserDivisionIds(userId);
-  if (!divisionIds.includes(project.divisionId)) notFound();
-
-  const role = await getUserRoleInDivision(userId, project.divisionId);
-  if (role !== "DIVISION_OWNER" && role !== "DIVISION_ADMIN") {
-    redirect(`/projects/${slug}`);
-  }
+  const project = await getProjectForCredentialCreate(userId, slug).catch(
+    (error) => {
+      if (isDomainError(error) && error.code === "NOT_FOUND") {
+        notFound();
+      }
+      if (isDomainError(error) && error.code === "FORBIDDEN") {
+        redirect(`/projects/${slug}`);
+      }
+      throw error;
+    },
+  );
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -47,7 +44,9 @@ export default async function NewProjectCredentialPage({ params }: Props) {
             <Key weight="duotone" size={20} color="var(--accent-primary)" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-(--text-primary)">New credential</h1>
+            <h1 className="text-xl font-semibold text-(--text-primary)">
+              New credential
+            </h1>
             <p className="text-sm text-(--text-muted)">{project.name}</p>
           </div>
         </div>

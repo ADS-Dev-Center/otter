@@ -5,13 +5,59 @@ change.
 
 ## Current Phase
 
-- Feature 17 complete: Settings page aligned to reflect only implemented functionality
+- Server Component refactor complete: all page.tsx files now follow the server component pattern with client logic extracted to dedicated view components
 
 ## Current Goal
 
 - Define and implement the next feature scope
 
 ## Completed
+
+- Completed Feature 19 Phase 2 (Server Actions + service-enforced server pages):
+  - Added shared action result utilities in `app/actions/types.ts`
+  - Added domain action modules:
+    - `app/actions/projects.ts`
+    - `app/actions/divisions.ts`
+    - `app/actions/credentials.ts`
+    - `app/actions/members.ts`
+  - Migrated mutation UIs from direct HTTP mutation calls to server actions for projects, divisions, credentials, and members
+  - Added page-data service modules:
+    - `lib/services/dashboard.service.ts`
+    - `lib/services/audit.service.ts`
+    - `lib/services/project-page.service.ts`
+  - Removed direct Prisma access from server pages and routed through services:
+    - `app/(app)/layout.tsx`
+    - `app/(app)/auditlog/page.tsx`
+    - `app/(app)/dashboard/page.tsx`
+    - `app/accept-invite/page.tsx`
+    - `app/(app)/projects/[slug]/page.tsx`
+    - `app/(app)/projects/[slug]/credentials/new/page.tsx`
+    - `app/(app)/projects/[slug]/credentials/[credentialSlug]/edit/page.tsx`
+  - Fixed `components/layout/DivisionSwitcher.tsx` import ordering to maintain valid module syntax
+  - Verified with `npm run build` (pass)
+
+- Completed Feature 19 Phase 1 (Clean Code implementation):
+  - Created `lib/errors.ts` with typed domain errors (`DomainError`, `ValidationError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `GoneError`, `UnprocessableEntityError`, `InternalError`) and shared `toFieldErrors` mapper
+  - Created service layer folder `lib/services/` and extracted business logic from route handlers into:
+    - `lib/services/project.service.ts`
+    - `lib/services/division.service.ts`
+    - `lib/services/credential.service.ts`
+    - `lib/services/member.service.ts`
+  - Refactored API routes to become thin HTTP handlers (auth check, request parsing, schema validation, service delegation, response mapping):
+    - `app/api/projects/route.ts`
+    - `app/api/projects/[id]/route.ts`
+    - `app/api/divisions/route.ts`
+    - `app/api/divisions/[id]/route.ts`
+    - `app/api/credentials/route.ts`
+    - `app/api/credentials/[id]/route.ts`
+    - `app/api/credentials/[id]/reveal/route.ts`
+    - `app/api/members/route.ts`
+    - `app/api/members/[membershipId]/route.ts`
+    - `app/api/members/invite/route.ts`
+    - `app/api/members/invitations/[id]/route.ts`
+    - `app/api/invite/accept/route.ts`
+  - Preserved existing API error payload shape (`{ error: { code, message } }`) and validation field error payloads while centralizing service-level permission and data logic
+  - Verified `npm run build` passes after refactor
 
 - **[BUGFIX]** Fixed sign-up redirect and data sync race condition:
   - Changed sign-up `forceRedirectUrl` from `/dashboard` to `/onboarding` to eliminate race condition with webhook
@@ -325,6 +371,36 @@ change.
 - Created `components/dashboard/QuickAccess.tsx` — 5 most recently created projects across all divisions; `<Link href="/projects/[slug]">` rows with credential counts; empty state with CTA
 - Rewrote `app/(app)/dashboard/page.tsx` — Server Component; fetches all data with two `Promise.all` rounds (memberships + user info first, then counts/logs/projects + per-division cred counts in parallel); actor names resolved from `User` table; time-of-day greeting from `currentUser()` first name; no mock data remains
 - `npm run build` passes with no type errors
+
+## Completed (Feature 20 — Reusable UI Primitives)
+
+- Created `components/ui/glass-input.tsx` — GlassInput wraps shadcn Input with glass className baked in; exports `GLASS_INPUT_CLASS` constant
+- Created `components/ui/glass-textarea.tsx` — GlassTextarea wraps shadcn Textarea with glass className baked in
+- Created `components/ui/glass-select.tsx` — GlassSelect wraps shadcn Select/SelectTrigger/SelectContent/SelectItem with glass styling and an `options` array prop; handles Phosphor icon rendering
+- Created `components/ui/field-input.tsx` — FieldInput renders the correct control via `switch (field.type)` over the `FieldType` enum (`TEXT | PASSWORD | TEXTAREA | SELECT | MONO`); PASSWORD type has built-in eye/eye-slash toggle
+- Created `components/ui/form-field.tsx` — FormField composes label + FieldInput + error message; `field.required` drives the asterisk
+- Created `components/ui/glass-dialog.tsx` — GlassDialog wraps shadcn Dialog with `glass-heavy rounded-2xl border-(--glass-border)` baked in; optional `footer` prop renders inside `DialogFooter`
+- Created `components/ui/danger-dialog.tsx` — DangerDialog wraps shadcn AlertDialog for destructive confirmations; optional `confirmText` renders a "type X to confirm" input; catches `onAction` errors and shows them inline + toast; auto-closes on success
+- Created `components/ui/form-actions.tsx` — FormActions renders the liquid-glass submit + ghost cancel button pair
+- Refactored `components/projects/CreateProjectDialog.tsx` — uses GlassDialog + FormField; submit button linked via `form="create-project-form"` attribute
+- Refactored `components/projects/EditProjectDialog.tsx` — uses GlassDialog + FormField; submit button linked via `form="edit-project-form"` attribute
+- Refactored `components/projects/DeleteProjectDialog.tsx` — replaced ~120-line shell with 40-line DangerDialog wrapper
+- Refactored `components/credentials/DeleteCredentialDialog.tsx` — replaced ~130-line shell with 40-line DangerDialog wrapper
+- Refactored `components/credentials/CredentialForm.tsx` — name field → FormField(TEXT), environment → FormField(SELECT) with ENVIRONMENT_OPTIONS constant, .env paste area → GlassTextarea, key/value row inputs → GlassInput, submit/cancel → FormActions
+- Refactored `components/settings/EditProfileDialog.tsx` — name Input replaced with GlassInput
+- Zero occurrences of the raw glass input className string remain outside `glass-input.tsx`
+- `npm run build` passes with no type errors
+
+## Completed (Server Component Refactor)
+
+- Extracted all client logic out of `page.tsx` files that were incorrectly marked `"use client"`:
+  - Created `components/projects/ProjectsView.tsx` — client component; accepts `initialProjects` + `initialDivisions` from server; filters projects by active division client-side (no API round-trip on division switch)
+  - Created `components/settings/SettingsView.tsx` — client component; accepts `initialProfile` + `initialDivisions` from server; refreshes via API only after mutations
+  - Created `components/members/MembersView.tsx` — client component; reads active division from localStorage; fetches members on demand
+  - Rewrote `app/(app)/projects/page.tsx` — server component; calls `listProjectsForUser` + `listDivisionsForUser` from service layer; no `"use client"`
+  - Rewrote `app/(app)/settings/page.tsx` — server component; calls `prisma.user.findUnique` + `listDivisionsForUser`; passes serialized profile + divisions as props
+  - Rewrote `app/(app)/members/page.tsx` — server component; thin wrapper rendering `MembersView`
+- `tsc --noEmit` passes with no type errors
 
 ## Next Up
 

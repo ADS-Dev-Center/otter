@@ -12,10 +12,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { prisma } from "@/lib/prisma";
-import { getUserDivisionIds, getUserRoleInDivision } from "@/lib/auth";
 import { getDivisionPalette } from "@/lib/divisions";
 import { ProjectCredentialsList } from "@/components/projects/ProjectCredentialsList";
+import { getProjectDetailBySlugForUser } from "@/lib/services/project-page.service";
+import { isDomainError } from "@/lib/errors";
 
 interface ProjectPageProps {
   params: Promise<{ slug: string }>;
@@ -26,28 +26,15 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const project = await prisma.project.findUnique({
-    where: { slug },
-    include: {
-      division: {
-        include: { _count: { select: { memberships: true } } },
-      },
-      credentials: {
-        include: {
-          fields: { select: { id: true, key: true, secret: true, credentialId: true } },
-          project: { select: { id: true, name: true, divisionId: true } },
-        },
-        orderBy: { createdAt: "desc" },
-      },
-    },
+  const { project, divisionIds, role } = await getProjectDetailBySlugForUser(
+    userId,
+    slug,
+  ).catch((error) => {
+    if (isDomainError(error) && error.code === "NOT_FOUND") {
+      notFound();
+    }
+    throw error;
   });
-
-  if (!project) notFound();
-
-  const divisionIds = await getUserDivisionIds(userId);
-  if (!divisionIds.includes(project.divisionId)) notFound();
-
-  const role = await getUserRoleInDivision(userId, project.divisionId);
 
   const divisionIndex = divisionIds.indexOf(project.divisionId);
   const palette = getDivisionPalette(divisionIndex === -1 ? 0 : divisionIndex);
@@ -60,7 +47,9 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
         : "border-[rgba(77,142,255,0.3)] text-(--accent-primary) bg-[rgba(77,142,255,0.08)]";
 
   const canEdit =
-    role === "DIVISION_OWNER" || role === "DIVISION_ADMIN" || role === "SUPER_ADMIN";
+    role === "DIVISION_OWNER" ||
+    role === "DIVISION_ADMIN" ||
+    role === "SUPER_ADMIN";
 
   return (
     <div className="flex flex-col gap-6">
@@ -80,14 +69,20 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
                 palette.iconBgClass,
               )}
             >
-              <FolderLock weight="duotone" size={22} color={palette.iconColor} />
+              <FolderLock
+                weight="duotone"
+                size={22}
+                color={palette.iconColor}
+              />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-(--text-primary)">
                 {project.name}
               </h1>
               {project.description && (
-                <p className="mt-1 text-sm text-(--text-muted)">{project.description}</p>
+                <p className="mt-1 text-sm text-(--text-muted)">
+                  {project.description}
+                </p>
               )}
             </div>
           </div>
@@ -103,7 +98,10 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
         </div>
 
         {canEdit && (
-          <Button asChild className="rounded-lg bg-(--button-liquid-bg) hover:bg-(--button-liquid-bg-hover) border border-(--button-liquid-border) text-(--text-primary)">
+          <Button
+            asChild
+            className="rounded-lg bg-(--button-liquid-bg) hover:bg-(--button-liquid-bg-hover) border border-(--button-liquid-border) text-(--text-primary)"
+          >
             <Link href={`/projects/${slug}/credentials/new`}>
               <Plus weight="duotone" size={14} className="mr-1.5" />
               Add credential
@@ -116,7 +114,9 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
         <div className="glass rounded-xl p-4">
           <div className="flex items-center gap-2 text-(--text-muted)">
             <Key weight="duotone" size={16} />
-            <span className="text-xs uppercase tracking-[0.18em]">Credentials</span>
+            <span className="text-xs uppercase tracking-[0.18em]">
+              Credentials
+            </span>
           </div>
           <p className="mt-3 text-3xl font-bold text-(--text-primary)">
             {project.credentials.length}

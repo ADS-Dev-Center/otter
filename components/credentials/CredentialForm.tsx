@@ -20,18 +20,18 @@ import {
   Code,
   Users,
 } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { GlassInput } from "@/components/ui/glass-input";
+import { GlassTextarea } from "@/components/ui/glass-textarea";
+import { FormField } from "@/components/ui/form-field";
+import { FormActions } from "@/components/ui/form-actions";
+import { FieldType } from "@/components/ui/field-input";
 import { cn } from "@/lib/utils";
 import { parseDotEnv } from "./parseDotEnv";
 import type { CredentialWithProject } from "@/types/credential";
+import {
+  createCredentialAction,
+  updateCredentialAction,
+} from "@/app/actions/credentials";
 
 const MAX_FIELDS = 200;
 
@@ -66,6 +66,18 @@ const ENV_CONFIG: Record<
   },
   shared: { label: "Shared", icon: Users, iconColor: "var(--accent-primary)" },
 };
+
+const ENVIRONMENT_OPTIONS = (
+  Object.entries(ENV_CONFIG) as [
+    Environment,
+    (typeof ENV_CONFIG)[Environment],
+  ][]
+).map(([val, cfg]) => ({
+  value: val,
+  label: cfg.label,
+  icon: cfg.icon,
+  iconColor: cfg.iconColor,
+}));
 
 const formSchema = z.object({
   name: z.string().min(1, "Credential name is required").max(120),
@@ -193,47 +205,36 @@ export function CredentialForm(props: Props) {
     try {
       if (isEdit) {
         const credential = (props as EditProps).credential;
-        const res = await fetch(`/api/credentials/${credential.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: data.name,
-            environment: data.environment,
-            fields: data.fields.map((f) => ({
-              key: f.key,
-              value: f.value,
-              secret: f.secret ?? true,
-            })),
-          }),
+        const result = await updateCredentialAction({
+          credentialId: credential.id,
+          name: data.name,
+          environment: data.environment,
+          fields: data.fields.map((f) => ({
+            key: f.key,
+            value: f.value,
+            secret: f.secret ?? true,
+          })),
         });
-        if (!res.ok) {
-          const json = (await res.json().catch(() => null)) as {
-            error?: { message?: string };
-          } | null;
+        if (!result.ok) {
           throw new Error(
-            json?.error?.message ?? "Failed to update credential",
+            result.error.message ?? "Failed to update credential",
           );
         }
         toast.success("Changes saved");
       } else {
-        const res = await fetch("/api/credentials", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...data,
-            fields: data.fields.map((f) => ({
-              key: f.key,
-              value: f.value,
-              secret: f.secret ?? true,
-            })),
-          }),
+        const result = await createCredentialAction({
+          name: data.name,
+          environment: data.environment,
+          projectId: data.projectId,
+          fields: data.fields.map((f) => ({
+            key: f.key,
+            value: f.value,
+            secret: f.secret ?? true,
+          })),
         });
-        if (!res.ok) {
-          const json = (await res.json().catch(() => null)) as {
-            error?: { message?: string };
-          } | null;
+        if (!result.ok) {
           throw new Error(
-            json?.error?.message ?? "Failed to create credential",
+            result.error.message ?? "Failed to create credential",
           );
         }
         toast.success("Credential created");
@@ -257,69 +258,34 @@ export function CredentialForm(props: Props) {
       <div className="glass rounded-xl overflow-hidden">
         {/* Name + Environment row */}
         <div className="flex gap-4 items-start px-5 py-4 border-b border-(--glass-border-subtle)">
-          <div className="flex-1 space-y-1.5">
-            <label className="text-xs font-medium text-(--text-subtle)">
-              Name <span className="text-(--state-error)">*</span>
-            </label>
-            <Input
-              {...register("name")}
-              placeholder="e.g. AWS Production Keys"
-              className="glass rounded-lg border-(--glass-border) text-(--text-primary) placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary) bg-transparent"
-            />
-            {errors.name && (
-              <p className="text-xs text-(--state-error)">
-                {errors.name.message}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-(--text-subtle)">
-              Environment
-            </label>
-            <Select
-              value={currentEnv}
-              onValueChange={(v: Environment) =>
-                setValue("environment", v, { shouldValidate: true })
-              }
-            >
-              <SelectTrigger className="glass rounded-lg border-(--glass-border) text-(--text-primary) focus:ring-[rgba(77,142,255,0.4)] focus:border-(--accent-primary) bg-transparent w-40">
-                <SelectValue placeholder="Environment" />
-              </SelectTrigger>
-              <SelectContent className="panel-dropdown">
-                {(
-                  Object.entries(ENV_CONFIG) as [
-                    Environment,
-                    {
-                      label: string;
-                      icon: React.ElementType;
-                      iconColor: string;
-                    },
-                  ][]
-                ).map(([val, cfg]) => (
-                  <SelectItem
-                    key={val}
-                    value={val}
-                    className="focus:bg-(--glass-bg-hover) text-(--text-primary)"
-                  >
-                    <span className="flex items-center gap-2">
-                      <cfg.icon
-                        weight="duotone"
-                        size={12}
-                        color={cfg.iconColor}
-                      />
-                      {cfg.label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.environment && (
-              <p className="text-xs text-(--state-error)">
-                {errors.environment.message}
-              </p>
-            )}
-          </div>
+          <FormField
+            field={{
+              type: FieldType.TEXT,
+              name: "name",
+              label: "Name",
+              placeholder: "e.g. AWS Production Keys",
+              required: true,
+            }}
+            registration={register("name")}
+            error={errors.name?.message}
+            className="flex-1"
+          />
+          <FormField
+            field={{
+              type: FieldType.SELECT,
+              name: "environment",
+              label: "Environment",
+              options: ENVIRONMENT_OPTIONS,
+            }}
+            value={currentEnv}
+            onValueChange={(v) =>
+              setValue("environment", v as Environment, {
+                shouldValidate: true,
+              })
+            }
+            error={errors.environment?.message}
+            className="w-40"
+          />
         </div>
 
         {/* Fields header */}
@@ -357,13 +323,8 @@ export function CredentialForm(props: Props) {
         {/* Paste area (collapsible) */}
         {pasteOpen && (
           <div className="px-5 py-3 border-b border-(--glass-border-subtle) bg-[rgba(77,142,255,0.04)] space-y-2">
-            <textarea
-              className={cn(
-                "w-full rounded-lg px-3 py-2 text-xs font-mono resize-none",
-                "glass border border-(--glass-border) bg-transparent text-(--text-primary)",
-                "placeholder:text-(--text-muted) focus:outline-none focus:ring-2 focus:ring-[rgba(77,142,255,0.4)] focus:border-(--accent-primary)",
-                "transition-colors",
-              )}
+            <GlassTextarea
+              className="text-xs font-mono"
               placeholder={
                 "DATABASE_URL=postgres://...\nAPI_KEY=sk-...\nSECRET=abc123"
               }
@@ -397,61 +358,72 @@ export function CredentialForm(props: Props) {
         </div>
 
         {/* Field rows */}
-        <div className="divide-y divide-(--glass-border-subtle)">
-          {fields.map((field, idx) => {
-            const isVisible = visibleValues.has(idx);
-            const decryptionFailed = isEdit
-              ? (props as EditProps).initialFields?.[idx]?.decryptionFailed
-              : false;
-            return (
-              <div
-                key={field.id}
-                className="grid grid-cols-[1fr_1fr_32px] gap-2 items-center px-5 py-2.5 hover:bg-(--glass-bg-hover) transition-colors"
-              >
-                <Input
-                  {...register(`fields.${idx}.key`)}
-                  placeholder="KEY_NAME"
-                  className="h-8 glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) font-mono text-xs placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary)"
-                />
-                <div className="relative">
-                  <Input
-                    {...register(`fields.${idx}.value`)}
-                    type={isVisible ? "text" : "password"}
-                    placeholder="value"
-                    className="h-8 glass rounded-lg border-(--glass-border) bg-transparent text-(--text-primary) font-mono text-xs placeholder:text-(--text-muted) focus-visible:ring-[rgba(77,142,255,0.4)] focus-visible:border-(--accent-primary) pr-7"
-                  />
-                  {decryptionFailed && (
-                    <div
-                      title="Decryption failed for this field"
-                      className="absolute left-0 top-0 mt-1 ml-2 text-amber-500"
-                    >
-                      <Warning weight="duotone" size={14} />
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => toggleSecretVisibility(idx)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-(--text-muted) hover:text-(--text-primary) transition-colors"
+        {(() => {
+          const decryptFailureMap = new Map<string, boolean>();
+          if (isEdit && (props as EditProps).initialFields) {
+            (props as EditProps).initialFields.forEach((field) => {
+              if (field.decryptionFailed) {
+                decryptFailureMap.set(field.key, true);
+              }
+            });
+          }
+          return (
+            <div className="divide-y divide-(--glass-border-subtle)">
+              {fields.map((field, idx) => {
+                const isVisible = visibleValues.has(idx);
+                const decryptionFailed =
+                  decryptFailureMap.get(field.key) ?? false;
+                return (
+                  <div
+                    key={field.id}
+                    className="grid grid-cols-[1fr_1fr_32px] gap-2 items-center px-5 py-2.5 hover:bg-(--glass-bg-hover) transition-colors"
                   >
-                    {isVisible ? (
-                      <EyeSlash weight="duotone" size={11} />
-                    ) : (
-                      <Eye weight="duotone" size={11} />
-                    )}
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => remove(idx)}
-                  disabled={fields.length === 1}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center border-transparent text-(--text-muted) hover:text-(--state-error) hover:bg-[rgba(240,68,56,0.08)] disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Trash weight="duotone" size={12} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+                    <GlassInput
+                      {...register(`fields.${idx}.key`)}
+                      placeholder="KEY_NAME"
+                      className="font-mono"
+                    />
+                    <div className="relative">
+                      <GlassInput
+                        {...register(`fields.${idx}.value`)}
+                        type={isVisible ? "text" : "password"}
+                        placeholder="value"
+                        className="font-mono pr-7"
+                      />
+                      {decryptionFailed && (
+                        <div
+                          title="Decryption failed for this field"
+                          className="absolute left-0 top-0 mt-1 ml-2 text-amber-500"
+                        >
+                          <Warning weight="duotone" size={14} />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleSecretVisibility(idx)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-(--text-muted) hover:text-(--text-primary) transition-colors"
+                      >
+                        {isVisible ? (
+                          <EyeSlash weight="duotone" size={11} />
+                        ) : (
+                          <Eye weight="duotone" size={11} />
+                        )}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => remove(idx)}
+                      disabled={fields.length === 1}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center border-transparent text-(--text-muted) hover:text-(--state-error) hover:bg-[rgba(240,68,56,0.08)] disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Trash weight="duotone" size={12} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Add field */}
         <div className="px-5 py-3 border-t border-(--glass-border-subtle)">
@@ -472,29 +444,12 @@ export function CredentialForm(props: Props) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 pt-1">
-        <Button
-          type="submit"
-          disabled={isSubmitting}
-          className="bg-(--button-liquid-bg) hover:bg-(--button-liquid-bg-hover) border border-(--button-liquid-border) text-(--text-primary)"
-        >
-          {isSubmitting
-            ? isEdit
-              ? "Saving…"
-              : "Creating…"
-            : isEdit
-              ? "Save changes"
-              : "Create credential"}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => router.back()}
-          className="text-(--text-subtle) hover:text-(--text-primary)"
-        >
-          Cancel
-        </Button>
-      </div>
+      <FormActions
+        isSubmitting={isSubmitting}
+        submitLabel={isEdit ? "Save changes" : "Create credential"}
+        loadingLabel={isEdit ? "Saving…" : "Creating…"}
+        onCancel={() => router.back()}
+      />
     </form>
   );
 }

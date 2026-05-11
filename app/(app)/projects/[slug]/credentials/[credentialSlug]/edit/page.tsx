@@ -3,10 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Key } from "@phosphor-icons/react/dist/ssr";
 import { Button } from "@/components/ui/button";
-import { prisma } from "@/lib/prisma";
-import { getUserDivisionIds, getUserRoleInDivision } from "@/lib/auth";
-import { decryptFromString } from "@/lib/crypto";
 import { CredentialForm } from "@/components/credentials/CredentialForm";
+import { getCredentialEditData } from "@/lib/services/project-page.service";
+import { isDomainError } from "@/lib/errors";
 
 interface Props {
   params: Promise<{ slug: string; credentialSlug: string }>;
@@ -18,76 +17,16 @@ export default async function EditProjectCredentialPage({ params }: Props) {
 
   const { slug, credentialSlug } = await params;
 
-  const project = await prisma.project.findUnique({
-    where: { slug },
-    select: { id: true, name: true, divisionId: true },
-  });
-
-  if (!project) notFound();
-
-  const credential = await prisma.credential.findUnique({
-    where: { projectId_slug: { projectId: project.id, slug: credentialSlug } },
-    include: {
-      fields: {
-        select: {
-          id: true,
-          key: true,
-          encryptedValue: true,
-          secret: true,
-          credentialId: true,
-        },
-      },
-      project: { select: { id: true, name: true, divisionId: true } },
-    },
-  });
-
-  if (!credential) notFound();
-
-  const divisionIds = await getUserDivisionIds(userId);
-  if (!divisionIds.includes(credential.project.divisionId)) notFound();
-
-  const role = await getUserRoleInDivision(
-    userId,
-    credential.project.divisionId,
-  );
-  if (role !== "DIVISION_OWNER" && role !== "DIVISION_ADMIN") {
-    redirect(`/projects/${slug}`);
-  }
-
-  const initialFields = credential.fields.map((f) => {
-    try {
-      return {
-        key: f.key,
-        value: decryptFromString(f.encryptedValue),
-        secret: f.secret,
-      };
-    } catch (err) {
-      console.error(`[edit credential] Failed to decrypt field ${f.key}:`, err);
-      return {
-        key: f.key,
-        value: "",
-        secret: f.secret,
-        decryptionFailed: true,
-      };
-    }
-  });
-
-  const credentialForForm = {
-    id: credential.id,
-    slug: credential.slug,
-    name: credential.name,
-    environment: credential.environment,
-    projectId: credential.projectId,
-    createdAt: credential.createdAt,
-    updatedAt: credential.updatedAt,
-    fields: credential.fields.map((f) => ({
-      id: f.id,
-      key: f.key,
-      secret: f.secret,
-      credentialId: f.credentialId,
-    })),
-    project: credential.project,
-  };
+  const { credential, credentialForForm, initialFields } =
+    await getCredentialEditData(userId, slug, credentialSlug).catch((error) => {
+      if (isDomainError(error) && error.code === "NOT_FOUND") {
+        notFound();
+      }
+      if (isDomainError(error) && error.code === "FORBIDDEN") {
+        redirect(`/projects/${slug}`);
+      }
+      throw error;
+    });
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
