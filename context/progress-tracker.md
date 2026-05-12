@@ -6,6 +6,7 @@ change.
 ## Current Phase
 
 - Feature 21 (Invite Member Logic) complete: share-link-only invite flow with accept invitation page
+- Credential encryption hardened: all CredentialField data (key + value) now encrypted at rest, `secret` column removed
 
 ## Current Goal
 
@@ -34,6 +35,24 @@ change.
     - Replaced email-based invite form with "Generate invite link" button (share-link-only)
     - Pending invites now show "Pending accepted" badge and the invite URL with copy button
     - Removed `GlassInput`, `EnvelopeSimple`, `Plus`, `Warning` imports (no longer needed)
+  - `npm run build` passes with no type errors
+
+- **[Security]** Encrypt all CredentialField data at rest:
+  - Updated `prisma/schema.prisma`: renamed `key` → `encryptedKey`, removed `secret Boolean` column from `CredentialField`
+  - Created migration `20260512024053_encrypt_all_credential_fields`: adds `encryptedKey`, copies existing `key` values, drops `key` and `secret` columns
+  - Created `scripts/encrypt-existing-keys.ts`: one-time script that encrypted 24 existing plaintext key values using AES-256-GCM
+  - Updated `lib/services/credential.service.ts`:
+    - `createCredential`: encrypts both key and value via `encryptToString()`
+    - `updateCredentialById`: encrypts both key and value on field replacement
+    - `revealCredentialFields`: decrypts both `encryptedKey` and `encryptedValue`
+    - `listCredentialsForUser` / `resolveCredential`: no longer select `key` or `secret` (only `id` + `credentialId`)
+  - Updated `lib/services/project-page.service.ts`:
+    - `getCredentialEditData`: decrypts both key and value for edit form pre-fill
+    - Project page query no longer selects `key` or `secret`
+  - Updated `lib/validations/credential.ts`: removed `secret` from `credentialFieldSchema`
+  - Updated `types/credential.ts`: removed `secret` from `CredentialField`, `CredentialFieldWithValue` now has `key` + `value` + optional `decryptionFailed`
+  - Updated `app/actions/credentials.ts`: removed `secret` from field array types
+  - Updated `components/credentials/CredentialForm.tsx`: removed `secret` toggle, all fields treated as encrypted
   - `npm run build` passes with no type errors
 
 - **[BUGFIX]** Fixed actor name display in activity log and audit log showing raw Clerk user ID instead of name/email:

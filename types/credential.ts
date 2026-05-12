@@ -1,12 +1,12 @@
 export interface CredentialField {
   id: string;
-  key: string;
-  secret: boolean;
   credentialId: string;
 }
 
 export interface CredentialFieldWithValue extends CredentialField {
+  key: string;
   value: string;
+  decryptionFailed?: boolean;
 }
 
 export interface Credential {

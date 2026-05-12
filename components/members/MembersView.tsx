@@ -291,9 +291,9 @@ function InviteLinkModal({
           <p className="text-xs text-(--text-subtle) order-2 sm:order-1">
             Expires in 7 days.
           </p>
-          <Button 
-            type="button" 
-            className="rounded-lg order-1 sm:order-2 w-full sm:w-auto" 
+          <Button
+            type="button"
+            className="rounded-lg order-1 sm:order-2 w-full sm:w-auto"
             onClick={onClose}
           >
             Done
@@ -483,7 +483,8 @@ export function MembersView() {
         <CardHeader>
           <CardTitle className="text-(--text-primary)">Invite member</CardTitle>
           <CardDescription className="text-(--text-muted)">
-            Generate a share link and send it to your teammate to invite them to this division.
+            Generate a share link and send it to your teammate to invite them to
+            this division.
           </CardDescription>
           <CardAction>
             <Badge variant="secondary">Admin only</Badge>
@@ -702,8 +703,11 @@ export function MembersView() {
                         >
                           {roleLabel(inv.role)}
                         </Badge>
-                        <Badge variant="outline" className="text-xs bg-[rgba(245,166,35,0.08)] text-(--accent-amber) border-[rgba(245,166,35,0.24)]">
-                          Pending accepted
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-[rgba(245,166,35,0.08)] text-(--accent-amber) border-[rgba(245,166,35,0.24)]"
+                        >
+                          Pending
                         </Badge>
                         <span className="text-xs text-(--text-muted)">
                           Expires {new Date(inv.expiresAt).toLocaleDateString()}
@@ -727,7 +731,12 @@ export function MembersView() {
                     </Button>
                   </div>
                   <div className="flex items-center gap-2 rounded-lg border border-(--glass-border-subtle) bg-(--glass-bg) px-3 py-2">
-                    <LinkSimple size={12} weight="duotone" color="var(--text-muted)" className="shrink-0" />
+                    <LinkSimple
+                      size={12}
+                      weight="duotone"
+                      color="var(--text-muted)"
+                      className="shrink-0"
+                    />
                     <p className="min-w-0 flex-1 break-all font-mono text-xs text-(--text-muted)">
                       {inv.inviteUrl}
                     </p>

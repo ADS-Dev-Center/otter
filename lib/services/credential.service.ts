@@ -29,7 +29,7 @@ async function resolveCredential(
     include: {
       project: { select: { divisionId: true } },
       fields: {
-        select: { id: true, key: true, secret: true, credentialId: true },
+        select: { id: true, encryptedKey: true, credentialId: true },
       },
     },
   });
@@ -83,7 +83,7 @@ export async function listCredentialsForUser(
     where: projectFilter,
     include: {
       fields: {
-        select: { id: true, key: true, secret: true, credentialId: true },
+        select: { id: true, credentialId: true },
       },
       project: { select: { id: true, name: true, divisionId: true } },
     },
@@ -131,15 +131,14 @@ export async function createCredential(
       projectId: input.projectId,
       fields: {
         create: input.fields.map((field) => ({
-          key: field.key,
+          encryptedKey: encryptToString(field.key),
           encryptedValue: encryptToString(field.value),
-          secret: field.secret,
         })),
       },
     },
     include: {
       fields: {
-        select: { id: true, key: true, secret: true, credentialId: true },
+        select: { id: true, credentialId: true },
       },
     },
   });
@@ -190,9 +189,8 @@ export async function updateCredentialById(
       await tx.credentialField.deleteMany({ where: { credentialId: id } });
       await tx.credentialField.createMany({
         data: input.fields.map((field) => ({
-          key: field.key,
+          encryptedKey: encryptToString(field.key),
           encryptedValue: encryptToString(field.value),
-          secret: field.secret ?? false,
           credentialId: id,
         })),
       });
@@ -208,7 +206,7 @@ export async function updateCredentialById(
       },
       include: {
         fields: {
-          select: { id: true, key: true, secret: true, credentialId: true },
+          select: { id: true, credentialId: true },
         },
       },
     });
@@ -284,9 +282,8 @@ export async function revealCredentialFields(userId: string, id: string) {
     try {
       return {
         id: field.id,
-        key: field.key,
+        key: decryptFromString(field.encryptedKey),
         value: decryptFromString(field.encryptedValue),
-        secret: field.secret,
         credentialId: field.credentialId,
       };
     } catch (error) {
@@ -296,9 +293,8 @@ export async function revealCredentialFields(userId: string, id: string) {
       );
       return {
         id: field.id,
-        key: field.key,
+        key: "[decryption failed]",
         value: "",
-        secret: field.secret,
         credentialId: field.credentialId,
         decryptionFailed: true,
       };

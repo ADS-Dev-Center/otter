@@ -16,7 +16,7 @@ export async function getProjectDetailBySlugForUser(
       credentials: {
         include: {
           fields: {
-            select: { id: true, key: true, secret: true, credentialId: true },
+            select: { id: true, credentialId: true },
           },
           project: { select: { id: true, name: true, divisionId: true } },
         },
@@ -85,9 +85,8 @@ export async function getCredentialEditData(
       fields: {
         select: {
           id: true,
-          key: true,
+          encryptedKey: true,
           encryptedValue: true,
-          secret: true,
           credentialId: true,
         },
       },
@@ -115,20 +114,18 @@ export async function getCredentialEditData(
   const initialFields = credential.fields.map((field) => {
     try {
       return {
-        key: field.key,
+        key: decryptFromString(field.encryptedKey),
         value: decryptFromString(field.encryptedValue),
-        secret: field.secret,
       };
     } catch (error) {
       const errorMsg =
         error instanceof Error ? error.message : "decryption failed";
       console.error(
-        `[getCredentialEditData] Failed to decrypt field ${field.key}: ${errorMsg}`,
+        `[getCredentialEditData] Failed to decrypt field ${field.id}: ${errorMsg}`,
       );
       return {
-        key: field.key,
+        key: "[decryption failed]",
         value: "",
-        secret: field.secret,
         decryptionFailed: true,
       };
     }
@@ -144,8 +141,6 @@ export async function getCredentialEditData(
     updatedAt: credential.updatedAt,
     fields: credential.fields.map((field) => ({
       id: field.id,
-      key: field.key,
-      secret: field.secret,
       credentialId: field.credentialId,
     })),
     project: credential.project,
