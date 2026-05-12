@@ -1,222 +1,224 @@
 "use client";
 
-import { useState } from "react";
+import { SignOutButton, UserButton, useUser } from "@clerk/nextjs";
 import {
   SquaresFour,
-  Buildings,
   FolderLock,
-  Key,
   UsersThree,
   ClipboardText,
   GearSix,
   Lifebuoy,
   SignOut,
-  ShieldChevron,
+  X,
 } from "@phosphor-icons/react";
 import type { IconProps } from "@phosphor-icons/react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import DivisionSwitcher from "./DivisionSwitcher";
 
 interface NavItem {
   label: string;
-  icon: React.ForwardRefExoticComponent<IconProps & React.RefAttributes<SVGSVGElement>>;
+  icon: React.ForwardRefExoticComponent<
+    IconProps & React.RefAttributes<SVGSVGElement>
+  >;
   href: string;
+  isAvailable: boolean;
 }
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", icon: SquaresFour, href: "/dashboard" },
-  { label: "Divisions", icon: Buildings, href: "/divisions" },
-  { label: "Projects", icon: FolderLock, href: "/projects" },
-  { label: "Credentials", icon: Key, href: "/credentials" },
-  { label: "Members", icon: UsersThree, href: "/members" },
-  { label: "Audit Log", icon: ClipboardText, href: "/audit" },
+  {
+    label: "Dashboard",
+    icon: SquaresFour,
+    href: "/dashboard",
+    isAvailable: true,
+  },
+  { label: "Projects", icon: FolderLock, href: "/projects", isAvailable: true },
+  { label: "Members", icon: UsersThree, href: "/members", isAvailable: true },
+  {
+    label: "Audit Log",
+    icon: ClipboardText,
+    href: "/auditlog",
+    isAvailable: true,
+  },
 ];
 
 const bottomItems: NavItem[] = [
-  { label: "Settings", icon: GearSix, href: "/settings" },
-  { label: "Support", icon: Lifebuoy, href: "/support" },
+  { label: "Settings", icon: GearSix, href: "/settings", isAvailable: true },
+  { label: "Support", icon: Lifebuoy, href: "/support", isAvailable: false },
 ];
 
-const mockDivisions = [
-  { name: "QA Division", color: "var(--accent-primary)" },
-  { name: "Dev Division", color: "var(--accent-teal)" },
-  { name: "DevOps", color: "var(--accent-amber)" },
-];
-
-function NavButton({
-  item,
-  isActive,
-  onClick,
-}: {
-  item: NavItem;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  const Icon = item.icon;
-  return (
-    <button
-      onClick={onClick}
-      className="group flex items-center w-full text-left"
-    >
-      <div
-        className="w-0.5 self-stretch shrink-0 rounded-r"
-        style={{
-          background: isActive ? "var(--accent-primary)" : "transparent",
-        }}
-      />
-      <div
-        className={`flex items-center gap-3 py-2 pl-3 pr-4 flex-1 rounded-lg transition-colors duration-100 ${
-          !isActive ? "group-hover:bg-(--glass-bg-hover)" : ""
-        }`}
-        style={{
-          background: isActive ? "var(--glass-bg-active)" : "transparent",
-        }}
-      >
-        <Icon
-          weight="duotone"
-          size={20}
-          color={isActive ? "var(--accent-primary)" : "var(--text-muted)"}
-        />
-        <span
-          className="text-sm font-medium"
-          style={{
-            color: isActive ? "var(--text-primary)" : "var(--text-subtle)",
-          }}
-        >
-          {item.label}
-        </span>
-      </div>
-    </button>
-  );
+interface SidebarProps {
+  onClose: () => void;
 }
 
-export default function Sidebar() {
-  const [activeHref, setActiveHref] = useState("/dashboard");
-  const [activeDivision, setActiveDivision] = useState("QA Division");
+export default function Sidebar({ onClose }: SidebarProps) {
+  const pathname = usePathname();
+  const { user } = useUser();
+  const displayName =
+    user?.fullName ?? user?.firstName ?? user?.username ?? "Signed-in User";
+  const email = user?.primaryEmailAddress?.emailAddress ?? "No email";
 
   return (
-    <aside
-      className="glass w-60 h-screen sticky top-0 flex flex-col shrink-0"
-    >
-      {/* Logo area */}
-      <div
-        className="flex items-center gap-3 px-4 h-14 shrink-0"
-        style={{ borderBottom: "1px solid var(--glass-border-subtle)" }}
-      >
-        <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: "var(--accent-primary)" }}
-        >
-          <ShieldChevron weight="duotone" size={22} color="white" />
+    <aside className="panel-sidebar pointer-events-auto flex h-full w-60 flex-col">
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-(--glass-border-subtle) px-4">
+        <div className="liquid-button flex size-10 items-center justify-center rounded-lg p-1.5">
+          <Image
+            src="/logo.png"
+            alt="Otter logo"
+            width={28}
+            height={28}
+            className="size-full object-contain"
+          />
         </div>
         <div>
-          <p
-            className="font-bold text-base leading-tight"
-            style={{ color: "var(--text-primary)" }}
-          >
+          <p className="text-base font-bold leading-tight text-(--text-primary)">
             Otter
           </p>
-          <p
-            className="text-[10px] uppercase tracking-widest"
-            style={{ color: "var(--text-muted)" }}
-          >
+          <p className="text-[10px] uppercase tracking-widest text-(--text-muted)">
             Vault
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="liquid-chip ml-auto inline-flex size-8 items-center justify-center rounded-lg text-(--text-muted) transition-colors hover:text-(--text-primary)"
+          aria-label="Close sidebar"
+        >
+          <X weight="duotone" size={16} />
+        </button>
       </div>
 
-      {/* Main nav items */}
-      <nav className="flex flex-col py-2">
-        {navItems.map((item) => (
-          <NavButton
-            key={item.href}
-            item={item}
-            isActive={activeHref === item.href}
-            onClick={() => setActiveHref(item.href)}
-          />
-        ))}
-      </nav>
+      <DivisionSwitcher onAddDivision={() => {}} />
 
-      {/* My Divisions sub-section */}
-      <div className="px-4 pt-2 pb-1">
-        <p
-          className="text-[10px] uppercase tracking-widest font-semibold mb-2"
-          style={{ color: "var(--text-muted)" }}
-        >
-          My Divisions
-        </p>
-        <div className="flex flex-col gap-0.5">
-          {mockDivisions.map((div) => {
-            const isActive = activeDivision === div.name;
-            return (
-              <button
-                key={div.name}
-                onClick={() => setActiveDivision(div.name)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors duration-100 w-full text-left hover:bg-(--glass-bg-hover)"
-              >
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ background: div.color }}
-                />
-                <span
-                  className="text-xs font-medium"
-                  style={{
-                    color: isActive
-                      ? "var(--text-primary)"
-                      : "var(--text-subtle)",
-                  }}
+      <nav className="flex flex-1 flex-col gap-3 p-2">
+        <div className="flex flex-col gap-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+
+            if (!item.isAvailable) {
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  disabled
+                  title="Coming soon"
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left text-white transition-colors hover:text-(--text-primary)"
                 >
-                  {div.name}
+                  <Icon weight="duotone" size={20} color="white" />
+                  <span className="text-sm font-medium text-white">
+                    {item.label}
+                  </span>
+                </button>
+              );
+            }
+
+            if (isActive) {
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="liquid-selected flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-white"
+                >
+                  <Icon weight="duotone" size={20} color="white" />
+                  <span className="text-sm font-medium text-white">
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            }
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex w-full items-center gap-3 px-3 py-2 text-left text-white transition-colors hover:text-(--text-primary)"
+              >
+                <Icon weight="duotone" size={20} color="white" />
+                <span className="text-sm font-medium text-white">
+                  {item.label}
                 </span>
-              </button>
+              </Link>
             );
           })}
         </div>
-      </div>
 
-      {/* Bottom section */}
-      <div
-        className="mt-auto flex flex-col pt-2"
-        style={{ borderTop: "1px solid var(--glass-border-subtle)" }}
-      >
-        {bottomItems.map((item) => (
-          <NavButton
-            key={item.href}
-            item={item}
-            isActive={activeHref === item.href}
-            onClick={() => setActiveHref(item.href)}
-          />
-        ))}
+        <div className="mt-auto border-t border-(--glass-border-subtle) pt-2">
+          <div className="flex flex-col gap-1">
+            {bottomItems.map((item) => {
+              const isActive = pathname === item.href;
+              const Icon = item.icon;
 
-        {/* User row */}
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-            style={{
-              background:
-                "linear-gradient(135deg, var(--accent-primary), var(--accent-teal))",
-            }}
-          >
-            <span className="text-xs font-semibold text-white">RD</span>
+              if (item.isAvailable) {
+                if (isActive) {
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="liquid-selected flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-white"
+                    >
+                      <Icon weight="duotone" size={20} color="white" />
+                      <span className="text-sm font-medium text-white">
+                        {item.label}
+                      </span>
+                    </Link>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-white transition-colors hover:text-(--text-primary)"
+                  >
+                    <Icon weight="duotone" size={20} color="white" />
+                    <span className="text-sm font-medium text-white">
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              }
+
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  disabled
+                  title="Coming soon"
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left text-white transition-colors hover:text-(--text-primary)"
+                >
+                  <Icon weight="duotone" size={20} color="white" />
+                  <span className="text-sm font-medium text-white">
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          <div className="flex-1 min-w-0">
-            <p
-              className="text-xs font-semibold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Rizky Dwi
-            </p>
-            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              Division Admin
-            </p>
+
+          <div className="mt-2 flex items-center gap-3 px-3 py-2">
+            <UserButton showName={false} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-(--text-primary)">
+                {displayName}
+              </p>
+              <p className="truncate text-[10px] text-(--text-muted)">
+                {email}
+              </p>
+            </div>
+            <SignOutButton>
+              <button
+                type="button"
+                className="transition-opacity hover:opacity-80"
+              >
+                <SignOut weight="duotone" size={14} color="var(--text-muted)" />
+              </button>
+            </SignOutButton>
           </div>
-          <button className="ml-auto hover:opacity-80 transition-opacity">
-            <SignOut
-              weight="duotone"
-              size={14}
-              color="var(--text-muted)"
-            />
-          </button>
         </div>
-      </div>
+      </nav>
     </aside>
   );
 }

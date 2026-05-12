@@ -1,18 +1,19 @@
-import Sidebar from "@/components/layout/Sidebar";
-import Topbar from "@/components/layout/Topbar";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
+import AppShell from "@/components/layout/AppShell";
+import { getDivisionMembershipCount } from "@/lib/services/division.service";
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <div className="flex flex-col flex-1 min-w-0">
-        <Topbar />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
-      </div>
-    </div>
-  );
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const membershipCount = await getDivisionMembershipCount(userId);
+
+  if (membershipCount === 0) redirect("/onboarding");
+
+  return <AppShell>{children}</AppShell>;
 }

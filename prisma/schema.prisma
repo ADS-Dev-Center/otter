@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../app/generated/prisma"
@@ -10,4 +8,134 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  name      String
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Division {
+  id          String               @id @default(cuid())
+  name        String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  memberships DivisionMembership[]
+  projects    Project[]
+  auditLogs   AuditLog[]
+  invitations Invitation[]
+}
+
+model Project {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  name        String
+  description String?
+  divisionId  String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  division    Division     @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  credentials Credential[]
+}
+
+model Credential {
+  id          String            @id @default(cuid())
+  slug        String
+  name        String
+  environment String            @default("development")
+  projectId   String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fields      CredentialField[]
+  auditLogs   AuditLog[]
+
+  @@unique([projectId, slug])
+}
+
+model CredentialField {
+  id             String     @id @default(cuid())
+  key            String
+  encryptedValue String
+  secret         Boolean    @default(false)
+  credentialId   String
+  credential     Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  actorId      String
+  action       AuditAction
+  resourceType String
+  resourceId   String?
+  resourceName String
+  credentialId String?
+  divisionId   String?
+  metadata     Json?
+  timestamp    DateTime    @default(now())
+  credential   Credential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  division     Division?   @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+}
+
+model DivisionMembership {
+  id         String   @id @default(cuid())
+  clerkId    String
+  divisionId String
+  role       Role     @default(MEMBER)
+  createdAt  DateTime @default(now())
+  division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+
+  @@unique([clerkId, divisionId])
+  @@index([clerkId])
+}
+
+model Invitation {
+  id         String           @id @default(cuid())
+  email      String
+  divisionId String
+  role       Role
+  token      String           @unique
+  status     InvitationStatus @default(PENDING)
+  invitedBy  String
+  expiresAt  DateTime
+  createdAt  DateTime         @default(now())
+  division   Division         @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([divisionId, status])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+enum Role {
+  SUPER_ADMIN
+  DIVISION_OWNER
+  DIVISION_ADMIN
+  MEMBER
+}
+
+enum AuditAction {
+  CREDENTIAL_CREATE
+  CREDENTIAL_UPDATE
+  CREDENTIAL_DELETE
+  CREDENTIAL_VIEW
+  CREDENTIAL_COPY
+  PROJECT_CREATE
+  PROJECT_UPDATE
+  PROJECT_DELETE
+  MEMBER_INVITE
+  MEMBER_ROLE_CHANGE
+  MEMBER_REMOVE
+  DIVISION_CREATE
+  DIVISION_RENAME
+  DIVISION_DELETE
 }
