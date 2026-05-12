@@ -14,6 +14,34 @@ change.
 
 ## Completed
 
+- **[ARCHITECTURE]** Removed direct client fetch calls from members UI component:
+  - Added `listMembersByDivisionAction` and `listMyDivisionsAction` in `app/actions/members.ts` for server-side data loading access
+  - Refactored `components/members/MembersView.tsx` to use server actions instead of `fetch('/api/...')`
+  - Preserved stale active division recovery flow after leave/kick by switching to first available division via server action response
+
+- **[UX]** Added confirmation modal for member removal and self leave actions:
+  - Updated `components/members/MembersView.tsx` to open a `DangerDialog` before executing destructive actions
+  - `Remove member` and `Leave division` now require explicit confirmation before calling `removeMemberAction`
+  - Added contextual modal copy/title/loading labels for self-leave vs kicking another member
+
+- **[BUGFIX]** Members page now respects role-based visibility and self-leave UX:
+  - Updated `components/members/MembersView.tsx` to derive current user membership and gate admin UI (`Invite member` card + `Active invite links`) to `DIVISION_OWNER`/`DIVISION_ADMIN` only
+  - Non-admin members no longer see `Change role` and member removal controls for other users
+  - Added self action label `Keluar` for current user row; admin removal label updated to `Keluarkan`
+  - Updated member copy to avoid implying role controls for non-admin users
+  - Updated remove flow toast to distinguish self leave vs admin removal and redirect self leave to `/dashboard`
+  - Updated `lib/services/member.service.ts` to allow self-leave for non-owner members while preserving admin-only removal rules for removing other users
+
+- **[POLISH]** Members actions copy switched to English:
+  - Updated `components/members/MembersView.tsx` action labels to `Remove member` and `Leave division`
+  - Updated self/admin removal success toasts to `You left the division` and `Member removed`
+
+- **[BUGFIX]** Improved sender invite UX wording and audit invite readability:
+  - Updated `components/members/MembersView.tsx` to remove synthetic placeholder email submission (`email: ""`) and switch sender-facing copy from pending-centric to link-centric (`Active invite links`, `Awaiting claim`, `active` count)
+  - Updated revoke invite toast to show a human-readable label (`Invite link`) for share-link invitations
+  - Updated `lib/services/member.service.ts` to write `MEMBER_INVITE` audit `resourceName` as a readable label (`Invite link`) for share-link flow instead of placeholder addresses
+  - Added `formatAuditResourceName()` in `lib/audit-meta.ts` and applied it in `components/dashboard/RecentActivity.tsx` + `components/audit/AuditLogRow.tsx` so historical placeholder values like `invite-...@placeholder.local` render as `Invite link`
+
 - **[Feature 21]** Invite Member Logic — share-link-only flow:
   - Removed `resend` dependency from `package.json` and all email-sending logic from `lib/services/member.service.ts`
   - Deleted `lib/emails/invite.ts` (email template no longer needed)

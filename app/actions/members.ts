@@ -9,12 +9,50 @@ import {
 import { isDomainError, toFieldErrors } from "@/lib/errors";
 import {
   inviteMember,
+  listMembersByDivision,
   removeMember,
   revokeInvitation,
   updateMemberRole,
   acceptInvitation,
 } from "@/lib/services/member.service";
+import { listDivisionsForUser } from "@/lib/services/division.service";
 import { actionFailure, actionSuccess, type ActionResult } from "./types";
+
+export async function listMembersByDivisionAction(input: {
+  divisionId: string;
+}): Promise<ActionResult<Awaited<ReturnType<typeof listMembersByDivision>>>> {
+  const { userId } = await auth();
+  if (!userId) return actionFailure("UNAUTHORIZED", "Unauthorized");
+
+  try {
+    const data = await listMembersByDivision(userId, input.divisionId);
+    return actionSuccess(data);
+  } catch (error) {
+    if (isDomainError(error)) {
+      return actionFailure(error.code, error.message);
+    }
+    console.error("[listMembersByDivisionAction]", error);
+    return actionFailure("INTERNAL_ERROR", "Failed to load members");
+  }
+}
+
+export async function listMyDivisionsAction(): Promise<
+  ActionResult<Awaited<ReturnType<typeof listDivisionsForUser>>>
+> {
+  const { userId } = await auth();
+  if (!userId) return actionFailure("UNAUTHORIZED", "Unauthorized");
+
+  try {
+    const data = await listDivisionsForUser(userId);
+    return actionSuccess(data);
+  } catch (error) {
+    if (isDomainError(error)) {
+      return actionFailure(error.code, error.message);
+    }
+    console.error("[listMyDivisionsAction]", error);
+    return actionFailure("INTERNAL_ERROR", "Failed to load divisions");
+  }
+}
 
 export async function inviteMemberAction(input: {
   email: string;

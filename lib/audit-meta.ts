@@ -163,3 +163,19 @@ export function relativeTime(date: Date | string): string {
   if (diff < 172_800_000) return "yesterday";
   return `${Math.floor(diff / 86_400_000)}d ago`;
 }
+
+export function formatAuditResourceName(
+  action: AuditAction,
+  resourceName: string,
+) {
+  if (
+    action === "MEMBER_INVITE" &&
+    (/^invite-\d+@(placeholder\.local|link)$/i.test(resourceName) ||
+      resourceName === "invite-link" ||
+      resourceName === "invite-link@otter.local")
+  ) {
+    return "Invite link";
+  }
+
+  return resourceName;
+}
