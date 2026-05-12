@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useAuth } from "@clerk/nextjs";
 import {
   Check,
   CheckCircle,
@@ -33,6 +34,7 @@ import {
 import { GlassDialog } from "@/components/ui/glass-dialog";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { DangerDialog } from "@/components/ui/danger-dialog";
 import { cn } from "@/lib/utils";
 import {
   ACTIVE_DIVISION_STORAGE_KEY,
@@ -41,11 +43,13 @@ import {
 import {
   changeMemberRoleAction,
   inviteMemberAction,
+  listMembersByDivisionAction,
+  listMyDivisionsAction,
   removeMemberAction,
   revokeInvitationAction,
 } from "@/app/actions/members";
 
-type ApiRole = "DIVISION_OWNER" | "DIVISION_ADMIN" | "MEMBER";
+type ApiRole = "SUPER_ADMIN" | "DIVISION_OWNER" | "DIVISION_ADMIN" | "MEMBER";
 type InviteRole = "DIVISION_ADMIN" | "MEMBER";
 
 type Member = {
@@ -55,15 +59,15 @@ type Member = {
   email: string;
   imageUrl: string | null;
   role: ApiRole;
-  createdAt: string;
+  createdAt: Date | string;
 };
 
 type PendingInvite = {
   id: string;
   email: string;
   role: ApiRole;
-  expiresAt: string;
-  createdAt: string;
+  expiresAt: Date | string;
+  createdAt: Date | string;
   inviteUrl: string;
 };
 
@@ -79,12 +83,14 @@ const inviteRoleOptions: RoleOption[] = [
 ];
 
 function roleBadgeVariant(role: ApiRole) {
+  if (role === "SUPER_ADMIN") return "default" as const;
   if (role === "DIVISION_OWNER") return "default" as const;
   if (role === "DIVISION_ADMIN") return "secondary" as const;
   return "outline" as const;
 }
 
 function roleLabel(role: ApiRole) {
+  if (role === "SUPER_ADMIN") return "Super Admin";
   if (role === "DIVISION_OWNER") return "Owner";
   if (role === "DIVISION_ADMIN") return "Admin";
   return "Member";
@@ -97,6 +103,16 @@ function getInitials(name: string) {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+}
+
+function getInviteLabel(email: string) {
+  if (/^invite-\d+@(placeholder\.local|link)$/i.test(email)) {
+    return "Invite link";
+  }
+  if (email === "invite-link" || email === "invite-link@otter.local") {
+    return "Invite link";
+  }
+  return email;
 }
 
 const ACCENT_CLASSES = [
@@ -291,9 +307,9 @@ function InviteLinkModal({
           <p className="text-xs text-(--text-subtle) order-2 sm:order-1">
             Expires in 7 days.
           </p>
-          <Button 
-            type="button" 
-            className="rounded-lg order-1 sm:order-2 w-full sm:w-auto" 
+          <Button
+            type="button"
+            className="rounded-lg order-1 sm:order-2 w-full sm:w-auto"
             onClick={onClose}
           >
             Done
@@ -332,6 +348,7 @@ function CopyLinkButton({ url }: { url: string }) {
 }
 
 export function MembersView() {
+  const { userId } = useAuth();
   const [divisionId, setDivisionId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
@@ -347,6 +364,11 @@ export function MembersView() {
 
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    id: string;
+    name: string;
+    isSelf: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem(ACTIVE_DIVISION_STORAGE_KEY);
@@ -363,22 +385,70 @@ export function MembersView() {
 
   useEffect(() => {
     if (!divisionId) return;
-    setLoading(true);
-    setError(null);
-    fetch(`/api/members?divisionId=${divisionId}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to load members");
-        const json = (await res.json()) as {
-          data: { members: Member[]; pendingInvites: PendingInvite[] };
-        };
-        setMembers(json.data.members);
-        setPendingInvites(json.data.pendingInvites);
-      })
-      .catch((err: unknown) => {
+    const currentDivisionId = divisionId;
+    let cancelled = false;
+
+    async function loadMembers() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const result = await listMembersByDivisionAction({
+          divisionId: currentDivisionId,
+        });
+
+        if (!result.ok) {
+          if (result.error.code === "FORBIDDEN") {
+            // Active division in localStorage might be stale after leaving/kicked.
+            const divisionsResult = await listMyDivisionsAction();
+            const fallbackDivisionId =
+              divisionsResult.ok && divisionsResult.data.length > 0
+                ? divisionsResult.data[0].id
+                : undefined;
+
+            if (
+              fallbackDivisionId &&
+              fallbackDivisionId !== currentDivisionId
+            ) {
+              if (cancelled) return;
+              localStorage.setItem(
+                ACTIVE_DIVISION_STORAGE_KEY,
+                fallbackDivisionId,
+              );
+              window.dispatchEvent(
+                new CustomEvent(DIVISION_CONTEXT_EVENT, {
+                  detail: { activeDivisionId: fallbackDivisionId },
+                }),
+              );
+              setDivisionId(fallbackDivisionId);
+              return;
+            }
+
+            if (!fallbackDivisionId) {
+              throw new Error("You are not a member of any division.");
+            }
+          }
+
+          throw new Error(result.error.message || "Failed to load members");
+        }
+
+        if (cancelled) return;
+        setMembers(result.data.members);
+        setPendingInvites(result.data.pendingInvites);
+      } catch (err: unknown) {
+        if (cancelled) return;
         const msg = err instanceof Error ? err.message : "Unknown error";
         setError(msg);
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadMembers();
+
+    return () => {
+      cancelled = true;
+    };
   }, [divisionId]);
 
   function handleGenerateLink() {
@@ -387,7 +457,7 @@ export function MembersView() {
 
     startInviting(async () => {
       const result = await inviteMemberAction({
-        email: `invite-${Date.now()}@placeholder.local`,
+        email: "",
         role: inviteRole,
         divisionId,
       });
@@ -401,12 +471,12 @@ export function MembersView() {
 
       if (result.data?.status === "pending" && result.data.inviteUrl) {
         setInviteLink({ url: result.data.inviteUrl });
-        const refreshed = (await fetch(
-          `/api/members?divisionId=${divisionId}`,
-        ).then((r) => r.json())) as {
-          data: { members: Member[]; pendingInvites: PendingInvite[] };
-        };
-        setPendingInvites(refreshed.data.pendingInvites);
+        const refreshed = await listMembersByDivisionAction({
+          divisionId,
+        });
+        if (refreshed.ok) {
+          setPendingInvites(refreshed.data.pendingInvites);
+        }
       }
     });
   }
@@ -431,16 +501,32 @@ export function MembersView() {
   async function handleRemoveMember(membershipId: string) {
     setRemovingId(membershipId);
     const member = members.find((m) => m.id === membershipId);
-    const result = await removeMemberAction({ membershipId });
-    if (result.ok) {
-      setMembers((prev) => prev.filter((m) => m.id !== membershipId));
-      toast.success("Member removed", { description: member?.name });
-    } else {
-      toast.error("Failed to remove member", {
-        description: result.error.message,
-      });
+    const isSelf = member?.clerkId === userId;
+    try {
+      const result = await removeMemberAction({ membershipId });
+      if (result.ok) {
+        setMembers((prev) => prev.filter((m) => m.id !== membershipId));
+        toast.success(isSelf ? "You left the division" : "Member removed", {
+          description: isSelf ? undefined : member?.name,
+        });
+        if (isSelf) {
+          window.location.href = "/dashboard";
+          return;
+        }
+      } else {
+        throw new Error(result.error.message || "Failed to remove member");
+      }
+    } finally {
+      setRemovingId(null);
     }
-    setRemovingId(null);
+  }
+
+  function openRemoveConfirmation(member: Member) {
+    setPendingRemoval({
+      id: member.id,
+      name: member.name,
+      isSelf: member.clerkId === userId,
+    });
   }
 
   async function handleRevokeInvite(inviteId: string) {
@@ -449,7 +535,9 @@ export function MembersView() {
     const result = await revokeInvitationAction({ invitationId: inviteId });
     if (result.ok) {
       setPendingInvites((prev) => prev.filter((i) => i.id !== inviteId));
-      toast.success("Invite revoked", { description: invite?.email });
+      toast.success("Invite revoked", {
+        description: getInviteLabel(invite?.email ?? "Invite link"),
+      });
     } else {
       toast.error("Failed to revoke invite", {
         description: result.error.message,
@@ -457,6 +545,11 @@ export function MembersView() {
     }
     setRevokingId(null);
   }
+
+  const currentMembership = members.find((member) => member.clerkId === userId);
+  const canManageMembers =
+    currentMembership?.role === "DIVISION_OWNER" ||
+    currentMembership?.role === "DIVISION_ADMIN";
 
   return (
     <div className="flex flex-col gap-6">
@@ -472,71 +565,76 @@ export function MembersView() {
           </h1>
         </div>
         <p className="max-w-3xl text-sm text-(--text-muted)">
-          Review the people in this division, adjust access for owners and
-          admins, and queue email invites for new teammates without leaving the
-          current workspace.
+          Review the people in this division and keep access up to date.
         </p>
       </header>
 
       {/* Invite form */}
-      <Card className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)">
-        <CardHeader>
-          <CardTitle className="text-(--text-primary)">Invite member</CardTitle>
-          <CardDescription className="text-(--text-muted)">
-            Generate a share link and send it to your teammate to invite them to this division.
-          </CardDescription>
-          <CardAction>
-            <Badge variant="secondary">Admin only</Badge>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
-              <div className="flex flex-col gap-2">
-                <p className="text-xs font-medium text-(--text-muted)">Role</p>
-                <div className="flex items-center gap-2">
-                  <RoleSelectorDialog
-                    title="Select invite role"
-                    description="Choose the starting access level for the invited teammate."
-                    value={inviteRole}
-                    onSave={setInviteRole}
-                    triggerLabel="Select role"
-                    ownerOnly
-                  />
-                  <Badge variant="outline" className="bg-(--glass-bg)">
-                    {roleLabel(inviteRole)}
-                  </Badge>
+      {canManageMembers ? (
+        <Card className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)">
+          <CardHeader>
+            <CardTitle className="text-(--text-primary)">
+              Invite member
+            </CardTitle>
+            <CardDescription className="text-(--text-muted)">
+              Generate a share link and send it to your teammate to invite them
+              to this division.
+            </CardDescription>
+            <CardAction>
+              <Badge variant="secondary">Admin only</Badge>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs font-medium text-(--text-muted)">
+                    Role
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <RoleSelectorDialog
+                      title="Select invite role"
+                      description="Choose the starting access level for the invited teammate."
+                      value={inviteRole}
+                      onSave={setInviteRole}
+                      triggerLabel="Select role"
+                      ownerOnly
+                    />
+                    <Badge variant="outline" className="bg-(--glass-bg)">
+                      {roleLabel(inviteRole)}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
 
-              <Button
-                type="button"
-                size="lg"
-                className="rounded-lg"
-                disabled={inviting}
-                onClick={handleGenerateLink}
-              >
-                {inviting ? (
-                  <Spinner
-                    data-icon="inline-start"
-                    weight="bold"
-                    className="animate-spin"
-                  />
-                ) : (
-                  <LinkSimple data-icon="inline-start" weight="duotone" />
-                )}
-                Generate invite link
-              </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="rounded-lg"
+                  disabled={inviting}
+                  onClick={handleGenerateLink}
+                >
+                  {inviting ? (
+                    <Spinner
+                      data-icon="inline-start"
+                      weight="bold"
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <LinkSimple data-icon="inline-start" weight="duotone" />
+                  )}
+                  Generate invite link
+                </Button>
+              </div>
+              {inviteError && (
+                <p className="flex items-center gap-1.5 text-xs text-red-400">
+                  <X size={12} weight="bold" />
+                  {inviteError}
+                </p>
+              )}
             </div>
-            {inviteError && (
-              <p className="flex items-center gap-1.5 text-xs text-red-400">
-                <X size={12} weight="bold" />
-                {inviteError}
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Active members */}
       <div className="flex items-center justify-between gap-3">
@@ -545,7 +643,9 @@ export function MembersView() {
             Member list
           </p>
           <p className="text-sm text-(--text-muted)">
-            Active members with role controls.
+            {canManageMembers
+              ? "Active members with role controls."
+              : "Active members in this division."}
           </p>
         </div>
         <Badge variant="outline">{members.length} active</Badge>
@@ -565,6 +665,7 @@ export function MembersView() {
           {members.map((member, index) => {
             const accentClass = ACCENT_CLASSES[index % ACCENT_CLASSES.length];
             const isOwner = member.role === "DIVISION_OWNER";
+            const isSelf = member.clerkId === userId;
 
             return (
               <Card
@@ -616,7 +717,7 @@ export function MembersView() {
                           />
                           Division owner
                         </div>
-                      ) : (
+                      ) : canManageMembers && !isSelf ? (
                         <>
                           <RoleSelectorDialog
                             title={`Change role for ${member.name}`}
@@ -633,7 +734,7 @@ export function MembersView() {
                             variant="outline"
                             size="sm"
                             className="rounded-lg bg-(--glass-bg) text-red-400 hover:bg-[rgba(239,68,68,0.08)] hover:text-red-400"
-                            onClick={() => handleRemoveMember(member.id)}
+                            onClick={() => openRemoveConfirmation(member)}
                             disabled={removingId === member.id}
                           >
                             {removingId === member.id ? (
@@ -641,10 +742,26 @@ export function MembersView() {
                             ) : (
                               <Trash weight="duotone" size={13} />
                             )}
-                            Remove
+                            Remove member
                           </Button>
                         </>
-                      )}
+                      ) : isSelf ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-lg bg-(--glass-bg) text-red-400 hover:bg-[rgba(239,68,68,0.08)] hover:text-red-400"
+                          onClick={() => openRemoveConfirmation(member)}
+                          disabled={removingId === member.id}
+                        >
+                          {removingId === member.id ? (
+                            <Spinner size={13} className="animate-spin" />
+                          ) : (
+                            <Trash weight="duotone" size={13} />
+                          )}
+                          Leave division
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -673,18 +790,18 @@ export function MembersView() {
       )}
 
       {/* Pending invites */}
-      {pendingInvites.length > 0 && (
+      {canManageMembers && pendingInvites.length > 0 && (
         <>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-lg font-semibold text-(--text-primary)">
-                Pending invites
+                Active invite links
               </p>
               <p className="text-sm text-(--text-muted)">
-                Invites waiting to be accepted.
+                Share links that have not been used yet.
               </p>
             </div>
-            <Badge variant="outline">{pendingInvites.length} pending</Badge>
+            <Badge variant="outline">{pendingInvites.length} active</Badge>
           </div>
           <div className="flex flex-col gap-3">
             {pendingInvites.map((inv) => (
@@ -702,8 +819,11 @@ export function MembersView() {
                         >
                           {roleLabel(inv.role)}
                         </Badge>
-                        <Badge variant="outline" className="text-xs bg-[rgba(245,166,35,0.08)] text-(--accent-amber) border-[rgba(245,166,35,0.24)]">
-                          Pending accepted
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-[rgba(245,166,35,0.08)] text-(--accent-amber) border-[rgba(245,166,35,0.24)]"
+                        >
+                          Awaiting claim
                         </Badge>
                         <span className="text-xs text-(--text-muted)">
                           Expires {new Date(inv.expiresAt).toLocaleDateString()}
@@ -727,7 +847,12 @@ export function MembersView() {
                     </Button>
                   </div>
                   <div className="flex items-center gap-2 rounded-lg border border-(--glass-border-subtle) bg-(--glass-bg) px-3 py-2">
-                    <LinkSimple size={12} weight="duotone" color="var(--text-muted)" className="shrink-0" />
+                    <LinkSimple
+                      size={12}
+                      weight="duotone"
+                      color="var(--text-muted)"
+                      className="shrink-0"
+                    />
                     <p className="min-w-0 flex-1 break-all font-mono text-xs text-(--text-muted)">
                       {inv.inviteUrl}
                     </p>
@@ -748,6 +873,28 @@ export function MembersView() {
           }}
         />
       )}
+
+      <DangerDialog
+        open={Boolean(pendingRemoval)}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemoval(null);
+        }}
+        title={pendingRemoval?.isSelf ? "Leave division?" : "Remove member?"}
+        description={
+          pendingRemoval?.isSelf
+            ? "You will lose access to this division immediately."
+            : `This will remove ${pendingRemoval?.name ?? "this member"} from the division.`
+        }
+        actionLabel={
+          pendingRemoval?.isSelf ? "Leave division" : "Remove member"
+        }
+        loadingLabel={pendingRemoval?.isSelf ? "Leaving..." : "Removing..."}
+        onAction={async () => {
+          if (!pendingRemoval) return;
+          await handleRemoveMember(pendingRemoval.id);
+          setPendingRemoval(null);
+        }}
+      />
     </div>
   );
 }

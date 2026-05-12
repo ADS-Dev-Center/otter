@@ -31,6 +31,7 @@ import {
   type CreateDivisionInput,
 } from "@/lib/validations/division";
 import { ACTIVE_DIVISION_STORAGE_KEY } from "@/lib/divisions";
+import { getSafeRedirectUrl } from "@/lib/redirect";
 import { createDivisionAction } from "@/app/actions/divisions";
 import { inviteMemberAction } from "@/app/actions/members";
 
@@ -175,7 +176,7 @@ function OnboardingContent() {
   }
 
   function handleFinish() {
-    router.push(redirectUrl || "/");
+    router.push(getSafeRedirectUrl(redirectUrl, "/dashboard"));
   }
 
   return (

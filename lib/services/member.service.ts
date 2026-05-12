@@ -13,6 +13,12 @@ import type {
   InviteMemberInput,
 } from "@/lib/validations/member";
 
+function normalizeInviteLabel(email?: string) {
+  const trimmed = email?.trim();
+  if (!trimmed) return "Invite link";
+  return trimmed;
+}
+
 export async function listMembersByDivision(
   userId: string,
   divisionId: string,
@@ -80,7 +86,9 @@ export async function listMembersByDivision(
     }),
   );
 
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const base = (
+    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+  ).replace(/\/$/, "");
   const pendingInvites = invitations.map((invitation) => ({
     id: invitation.id,
     email: invitation.email,
@@ -113,8 +121,9 @@ export async function inviteMember(userId: string, input: InviteMemberInput) {
     throw new NotFoundError("Division not found");
   }
 
-  // Share-link-only flow: skip user lookup, create invitation directly
-  const email = input.email || `invite-${Date.now()}@link`;
+  // Share-link-only flow: invitation can be sent via URL without recipient email.
+  const inviteLabel = normalizeInviteLabel(input.email);
+  const email = input.email?.trim() || "invite-link@otter.local";
 
   const token = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -138,7 +147,7 @@ export async function inviteMember(userId: string, input: InviteMemberInput) {
       actorId: userId,
       action: "MEMBER_INVITE",
       resourceType: "MEMBER",
-      resourceName: email,
+      resourceName: inviteLabel,
       divisionId: input.divisionId,
     });
   } catch (error) {
@@ -207,6 +216,29 @@ export async function removeMember(userId: string, membershipId: string) {
   });
   if (!membership) {
     throw new NotFoundError("Membership not found");
+  }
+
+  if (membership.clerkId === userId) {
+    if (membership.role === "DIVISION_OWNER") {
+      throw new ForbiddenError("Division owner cannot leave the division");
+    }
+
+    await prisma.divisionMembership.delete({ where: { id: membershipId } });
+
+    try {
+      await writeAuditLog({
+        actorId: userId,
+        action: "MEMBER_REMOVE",
+        resourceType: "MEMBER",
+        resourceId: membership.clerkId,
+        resourceName: "Self leave",
+        divisionId: membership.divisionId,
+      });
+    } catch (error) {
+      console.error("[removeMember:self-leave] audit log failed:", error);
+    }
+
+    return;
   }
 
   const callerRole = await getUserRoleInDivision(userId, membership.divisionId);
@@ -313,7 +345,7 @@ export async function acceptInvitation(userId: string, token: string) {
       actorId: userId,
       action: "MEMBER_INVITE",
       resourceType: "MEMBER",
-      resourceName: invitation.email,
+      resourceName: normalizeInviteLabel(invitation.email),
       divisionId: invitation.divisionId,
     });
   } catch (error) {

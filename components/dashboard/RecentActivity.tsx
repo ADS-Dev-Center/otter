@@ -1,4 +1,8 @@
-import { ACTION_META, relativeTime } from "@/lib/audit-meta";
+import {
+  ACTION_META,
+  formatAuditResourceName,
+  relativeTime,
+} from "@/lib/audit-meta";
 import type { AuditAction } from "@/app/generated/prisma/enums";
 
 export type ActivityEntry = {
@@ -24,7 +28,10 @@ export function RecentActivity({ entries }: Props) {
       </h2>
 
       {entries.length === 0 ? (
-        <p className="text-sm py-4 text-center" style={{ color: "var(--text-muted)" }}>
+        <p
+          className="text-sm py-4 text-center"
+          style={{ color: "var(--text-muted)" }}
+        >
           No activity yet.
         </p>
       ) : (
@@ -32,6 +39,10 @@ export function RecentActivity({ entries }: Props) {
           {entries.map((entry, idx) => {
             const meta = ACTION_META[entry.action];
             const Icon = meta.icon;
+            const resourceLabel = formatAuditResourceName(
+              entry.action,
+              entry.resourceName,
+            );
             const isLast = idx === entries.length - 1;
 
             return (
@@ -51,21 +62,25 @@ export function RecentActivity({ entries }: Props) {
                   <Icon weight="duotone" size={14} color={meta.iconColor} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm" style={{ color: "var(--text-primary)" }}>
+                  <p
+                    className="text-sm"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     <span className="font-semibold">{entry.actorName}</span>{" "}
                     {meta.verb}{" "}
                     <span
                       className="font-medium"
                       style={{ color: "var(--accent-primary)" }}
                     >
-                      {entry.resourceName}
+                      {resourceLabel}
                     </span>
                   </p>
                   <p
                     className="text-xs mt-0.5"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    {entry.divisionName ?? "—"} · {relativeTime(entry.timestamp)}
+                    {entry.divisionName ?? "—"} ·{" "}
+                    {relativeTime(entry.timestamp)}
                   </p>
                 </div>
               </div>

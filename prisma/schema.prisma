@@ -60,9 +60,8 @@ model Credential {
 
 model CredentialField {
   id             String     @id @default(cuid())
-  key            String
+  encryptedKey   String
   encryptedValue String
-  secret         Boolean    @default(false)
   credentialId   String
   credential     Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
 }

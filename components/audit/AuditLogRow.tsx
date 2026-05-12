@@ -2,7 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { AuditEntryDTO } from "@/app/api/audit/route";
-import { ACTION_META, relativeTime } from "@/lib/audit-meta";
+import {
+  ACTION_META,
+  formatAuditResourceName,
+  relativeTime,
+} from "@/lib/audit-meta";
 
 const RESOURCE_LABELS: Record<string, string> = {
   CREDENTIAL: "Credential",
@@ -16,6 +20,10 @@ type Props = { entry: AuditEntryDTO; rowNumber: number; isEven: boolean };
 export function AuditLogRow({ entry, rowNumber, isEven }: Props) {
   const meta = ACTION_META[entry.action];
   const Icon = meta.icon;
+  const resourceLabel = formatAuditResourceName(
+    entry.action,
+    entry.resourceName,
+  );
 
   return (
     <TableRow
@@ -25,7 +33,9 @@ export function AuditLogRow({ entry, rowNumber, isEven }: Props) {
       )}
     >
       <TableCell className="py-3 text-center">
-        <span className="text-xs font-medium text-(--text-muted)">{rowNumber}</span>
+        <span className="text-xs font-medium text-(--text-muted)">
+          {rowNumber}
+        </span>
       </TableCell>
 
       <TableCell className="py-3">
@@ -53,7 +63,7 @@ export function AuditLogRow({ entry, rowNumber, isEven }: Props) {
       <TableCell className="py-3">
         <div className="flex flex-col gap-0.5">
           <span className="truncate text-sm font-semibold text-(--text-primary)">
-            {entry.resourceName}
+            {resourceLabel}
           </span>
           <span className="text-[11px] text-(--text-muted)">
             {RESOURCE_LABELS[entry.resourceType] ?? entry.resourceType}
@@ -75,8 +85,12 @@ export function AuditLogRow({ entry, rowNumber, isEven }: Props) {
             </div>
           )}
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-medium text-(--text-primary)">{entry.actorName}</span>
-            <span className="text-[11px] text-(--text-muted)">{entry.actorEmail}</span>
+            <span className="text-sm font-medium text-(--text-primary)">
+              {entry.actorName}
+            </span>
+            <span className="text-[11px] text-(--text-muted)">
+              {entry.actorEmail}
+            </span>
           </div>
         </div>
       </TableCell>
@@ -100,7 +114,9 @@ export function AuditLogRow({ entry, rowNumber, isEven }: Props) {
             <span className="font-mono text-(--text-muted) line-through">
               {entry.metadata.oldValue}
             </span>
-            <span className="font-mono text-(--state-success)">{entry.metadata.newValue}</span>
+            <span className="font-mono text-(--state-success)">
+              {entry.metadata.newValue}
+            </span>
           </div>
         ) : (
           <span className="text-xs leading-relaxed text-(--text-subtle)">

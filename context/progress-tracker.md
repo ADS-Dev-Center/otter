@@ -6,12 +6,41 @@ change.
 ## Current Phase
 
 - Feature 21 (Invite Member Logic) complete: share-link-only invite flow with accept invitation page
+- Credential encryption hardened: all CredentialField data (key + value) now encrypted at rest, `secret` column removed
 
 ## Current Goal
 
 - Define and implement the next feature scope
 
 ## Completed
+
+- **[ARCHITECTURE]** Removed direct client fetch calls from members UI component:
+  - Added `listMembersByDivisionAction` and `listMyDivisionsAction` in `app/actions/members.ts` for server-side data loading access
+  - Refactored `components/members/MembersView.tsx` to use server actions instead of `fetch('/api/...')`
+  - Preserved stale active division recovery flow after leave/kick by switching to first available division via server action response
+
+- **[UX]** Added confirmation modal for member removal and self leave actions:
+  - Updated `components/members/MembersView.tsx` to open a `DangerDialog` before executing destructive actions
+  - `Remove member` and `Leave division` now require explicit confirmation before calling `removeMemberAction`
+  - Added contextual modal copy/title/loading labels for self-leave vs kicking another member
+
+- **[BUGFIX]** Members page now respects role-based visibility and self-leave UX:
+  - Updated `components/members/MembersView.tsx` to derive current user membership and gate admin UI (`Invite member` card + `Active invite links`) to `DIVISION_OWNER`/`DIVISION_ADMIN` only
+  - Non-admin members no longer see `Change role` and member removal controls for other users
+  - Added self action label `Keluar` for current user row; admin removal label updated to `Keluarkan`
+  - Updated member copy to avoid implying role controls for non-admin users
+  - Updated remove flow toast to distinguish self leave vs admin removal and redirect self leave to `/dashboard`
+  - Updated `lib/services/member.service.ts` to allow self-leave for non-owner members while preserving admin-only removal rules for removing other users
+
+- **[POLISH]** Members actions copy switched to English:
+  - Updated `components/members/MembersView.tsx` action labels to `Remove member` and `Leave division`
+  - Updated self/admin removal success toasts to `You left the division` and `Member removed`
+
+- **[BUGFIX]** Improved sender invite UX wording and audit invite readability:
+  - Updated `components/members/MembersView.tsx` to remove synthetic placeholder email submission (`email: ""`) and switch sender-facing copy from pending-centric to link-centric (`Active invite links`, `Awaiting claim`, `active` count)
+  - Updated revoke invite toast to show a human-readable label (`Invite link`) for share-link invitations
+  - Updated `lib/services/member.service.ts` to write `MEMBER_INVITE` audit `resourceName` as a readable label (`Invite link`) for share-link flow instead of placeholder addresses
+  - Added `formatAuditResourceName()` in `lib/audit-meta.ts` and applied it in `components/dashboard/RecentActivity.tsx` + `components/audit/AuditLogRow.tsx` so historical placeholder values like `invite-...@placeholder.local` render as `Invite link`
 
 - **[Feature 21]** Invite Member Logic — share-link-only flow:
   - Removed `resend` dependency from `package.json` and all email-sending logic from `lib/services/member.service.ts`
@@ -34,6 +63,24 @@ change.
     - Replaced email-based invite form with "Generate invite link" button (share-link-only)
     - Pending invites now show "Pending accepted" badge and the invite URL with copy button
     - Removed `GlassInput`, `EnvelopeSimple`, `Plus`, `Warning` imports (no longer needed)
+  - `npm run build` passes with no type errors
+
+- **[Security]** Encrypt all CredentialField data at rest:
+  - Updated `prisma/schema.prisma`: renamed `key` → `encryptedKey`, removed `secret Boolean` column from `CredentialField`
+  - Created migration `20260512024053_encrypt_all_credential_fields`: adds `encryptedKey`, copies existing `key` values, drops `key` and `secret` columns
+  - Created `scripts/encrypt-existing-keys.ts`: one-time script that encrypted 24 existing plaintext key values using AES-256-GCM
+  - Updated `lib/services/credential.service.ts`:
+    - `createCredential`: encrypts both key and value via `encryptToString()`
+    - `updateCredentialById`: encrypts both key and value on field replacement
+    - `revealCredentialFields`: decrypts both `encryptedKey` and `encryptedValue`
+    - `listCredentialsForUser` / `resolveCredential`: no longer select `key` or `secret` (only `id` + `credentialId`)
+  - Updated `lib/services/project-page.service.ts`:
+    - `getCredentialEditData`: decrypts both key and value for edit form pre-fill
+    - Project page query no longer selects `key` or `secret`
+  - Updated `lib/validations/credential.ts`: removed `secret` from `credentialFieldSchema`
+  - Updated `types/credential.ts`: removed `secret` from `CredentialField`, `CredentialFieldWithValue` now has `key` + `value` + optional `decryptionFailed`
+  - Updated `app/actions/credentials.ts`: removed `secret` from field array types
+  - Updated `components/credentials/CredentialForm.tsx`: removed `secret` toggle, all fields treated as encrypted
   - `npm run build` passes with no type errors
 
 - **[BUGFIX]** Fixed actor name display in activity log and audit log showing raw Clerk user ID instead of name/email:

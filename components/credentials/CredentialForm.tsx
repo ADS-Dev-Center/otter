@@ -38,7 +38,6 @@ const MAX_FIELDS = 200;
 const fieldSchema = z.object({
   key: z.string().min(1, "Key is required").max(200),
   value: z.string().max(10000),
-  secret: z.boolean(),
 });
 
 const ENVIRONMENTS = [
@@ -104,7 +103,6 @@ interface EditProps {
   initialFields: Array<{
     key: string;
     value: string;
-    secret: boolean;
     decryptionFailed?: boolean;
   }>;
   returnUrl?: string;
@@ -142,15 +140,15 @@ export function CredentialForm(props: Props) {
           fields:
             (props as EditProps).initialFields.length > 0
               ? (props as EditProps).initialFields.map(
-                  ({ key, value, secret }) => ({ key, value, secret }),
+                  ({ key, value }) => ({ key, value }),
                 )
-              : [{ key: "", value: "", secret: true }],
+              : [{ key: "", value: "" }],
         }
       : {
           name: "",
           environment: "development",
           projectId,
-          fields: [{ key: "", value: "", secret: true }],
+          fields: [{ key: "", value: "" }],
         },
   });
 
@@ -186,12 +184,12 @@ export function CredentialForm(props: Props) {
         replace(
           parsed
             .slice(0, MAX_FIELDS)
-            .map((p) => ({ key: p.key, value: p.value, secret: false })),
+            .map((p) => ({ key: p.key, value: p.value })),
         );
       } else {
         setPasteWarning(null);
         replace(
-          parsed.map((p) => ({ key: p.key, value: p.value, secret: false })),
+          parsed.map((p) => ({ key: p.key, value: p.value })),
         );
       }
       setPasteText("");
@@ -212,7 +210,6 @@ export function CredentialForm(props: Props) {
           fields: data.fields.map((f) => ({
             key: f.key,
             value: f.value,
-            secret: f.secret ?? true,
           })),
         });
         if (!result.ok) {
@@ -229,7 +226,6 @@ export function CredentialForm(props: Props) {
           fields: data.fields.map((f) => ({
             key: f.key,
             value: f.value,
-            secret: f.secret ?? true,
           })),
         });
         if (!result.ok) {
@@ -434,7 +430,7 @@ export function CredentialForm(props: Props) {
           )}
           <button
             type="button"
-            onClick={() => append({ key: "", value: "", secret: true })}
+            onClick={() => append({ key: "", value: "" })}
             disabled={fields.length >= MAX_FIELDS}
             className="flex items-center gap-1.5 text-xs text-(--text-muted) hover:text-(--accent-primary) disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >

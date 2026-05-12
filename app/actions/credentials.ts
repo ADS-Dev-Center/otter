@@ -18,7 +18,7 @@ export async function createCredentialAction(input: {
   name: string;
   environment: "production" | "staging" | "development" | "shared";
   projectId: string;
-  fields: Array<{ key: string; value: string; secret: boolean }>;
+  fields: Array<{ key: string; value: string }>;
 }): Promise<ActionResult<Awaited<ReturnType<typeof createCredential>>>> {
   const { userId } = await auth();
   if (!userId) return actionFailure("UNAUTHORIZED", "Unauthorized");
@@ -49,7 +49,7 @@ export async function updateCredentialAction(input: {
   credentialId: string;
   name?: string;
   environment?: "production" | "staging" | "development" | "shared";
-  fields?: Array<{ key: string; value: string; secret: boolean }>;
+  fields?: Array<{ key: string; value: string }>;
 }): Promise<ActionResult<Awaited<ReturnType<typeof updateCredentialById>>>> {
   const { userId } = await auth();
   if (!userId) return actionFailure("UNAUTHORIZED", "Unauthorized");
