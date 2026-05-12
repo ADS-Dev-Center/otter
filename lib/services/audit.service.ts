@@ -62,7 +62,8 @@ export async function getInitialAuditLogData(userId: string, perPage: number) {
       const info = {
         name:
           [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-          "Unknown",
+          user.primaryEmailAddress?.emailAddress ||
+          "Unknown User",
         email: user.primaryEmailAddress?.emailAddress ?? "",
         imageUrl: user.imageUrl,
       };

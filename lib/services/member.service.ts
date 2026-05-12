@@ -1,11 +1,8 @@
 import { clerkClient } from "@clerk/nextjs/server";
-import { Resend } from "resend";
 import { prisma } from "@/lib/prisma";
 import { getUserRoleInDivision } from "@/lib/auth";
-import { inviteEmailHtml } from "@/lib/emails/invite";
 import { writeAuditLog } from "@/lib/audit";
 import {
-  ConflictError,
   ForbiddenError,
   GoneError,
   NotFoundError,
@@ -15,8 +12,6 @@ import type {
   ChangeMemberRoleInput,
   InviteMemberInput,
 } from "@/lib/validations/member";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function listMembersByDivision(
   userId: string,
@@ -85,12 +80,14 @@ export async function listMembersByDivision(
     }),
   );
 
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
   const pendingInvites = invitations.map((invitation) => ({
     id: invitation.id,
     email: invitation.email,
     role: invitation.role,
     expiresAt: invitation.expiresAt,
     createdAt: invitation.createdAt,
+    inviteUrl: `${base}/accept-invite?token=${invitation.token}`,
   }));
 
   return { members, pendingInvites };
@@ -116,57 +113,15 @@ export async function inviteMember(userId: string, input: InviteMemberInput) {
     throw new NotFoundError("Division not found");
   }
 
-  const client = await clerkClient();
-  const { data: clerkUsers } = await client.users.getUserList({
-    emailAddress: [input.email],
-  });
-  const clerkUser = clerkUsers[0];
-
-  if (clerkUser) {
-    const existingMembership = await prisma.divisionMembership.findUnique({
-      where: {
-        clerkId_divisionId: {
-          clerkId: clerkUser.id,
-          divisionId: input.divisionId,
-        },
-      },
-    });
-    if (existingMembership) {
-      throw new ConflictError("User is already a member of this division");
-    }
-
-    await prisma.divisionMembership.create({
-      data: {
-        clerkId: clerkUser.id,
-        divisionId: input.divisionId,
-        role: input.role,
-      },
-    });
-
-    try {
-      await writeAuditLog({
-        actorId: userId,
-        action: "MEMBER_INVITE",
-        resourceType: "MEMBER",
-        resourceName: input.email,
-        divisionId: input.divisionId,
-      });
-    } catch (error) {
-      console.error("[inviteMember] audit log failed:", error);
-    }
-
-    return {
-      status: "added" as const,
-      message: "Member added directly",
-    };
-  }
+  // Share-link-only flow: skip user lookup, create invitation directly
+  const email = input.email || `invite-${Date.now()}@link`;
 
   const token = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   await prisma.invitation.create({
     data: {
-      email: input.email,
+      email,
       divisionId: input.divisionId,
       role: input.role,
       token,
@@ -178,40 +133,12 @@ export async function inviteMember(userId: string, input: InviteMemberInput) {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const inviteUrl = `${base.replace(/\/$/, "")}/accept-invite?token=${token}`;
 
-  let inviterName = "Someone";
-  try {
-    const inviter = await client.users.getUser(userId);
-    inviterName =
-      `${inviter.firstName ?? ""} ${inviter.lastName ?? ""}`.trim() ||
-      inviter.emailAddresses[0]?.emailAddress ||
-      "Someone";
-  } catch {
-    // Non-fatal fallback.
-  }
-
-  const { error: emailError } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev",
-    to: [input.email],
-    subject: "You've been invited to Otter",
-    html: inviteEmailHtml({
-      inviterName,
-      divisionName: division.name,
-      role: input.role,
-      inviteUrl,
-      expiresAt,
-    }),
-  });
-
-  if (emailError) {
-    console.error("[inviteMember] resend failed:", emailError);
-  }
-
   try {
     await writeAuditLog({
       actorId: userId,
       action: "MEMBER_INVITE",
       resourceType: "MEMBER",
-      resourceName: input.email,
+      resourceName: email,
       divisionId: input.divisionId,
     });
   } catch (error) {
@@ -221,7 +148,6 @@ export async function inviteMember(userId: string, input: InviteMemberInput) {
   return {
     status: "pending" as const,
     inviteUrl,
-    emailFailed: !!emailError,
   };
 }
 

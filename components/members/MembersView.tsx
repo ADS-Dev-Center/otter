@@ -5,14 +5,11 @@ import {
   Check,
   CheckCircle,
   Copy,
-  EnvelopeSimple,
   LinkSimple,
-  Plus,
   ShieldCheck,
   Spinner,
   Trash,
   UsersThree,
-  Warning,
   X,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -34,7 +31,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { GlassDialog } from "@/components/ui/glass-dialog";
-import { GlassInput } from "@/components/ui/glass-input";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
@@ -68,6 +64,7 @@ type PendingInvite = {
   role: ApiRole;
   expiresAt: string;
   createdAt: string;
+  inviteUrl: string;
 };
 
 type RoleOption = { value: InviteRole; label: string; description: string };
@@ -217,11 +214,9 @@ function RoleSelectorDialog({
 
 function InviteLinkModal({
   inviteUrl,
-  emailFailed,
   onClose,
 }: {
   inviteUrl: string;
-  emailFailed: boolean;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -235,52 +230,35 @@ function InviteLinkModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="glass-heavy rounded-2xl border-(--glass-border) text-(--text-primary) sm:max-w-md">
+      <DialogContent className="glass-heavy rounded-2xl border-(--glass-border) text-(--text-primary) w-[calc(100%-2rem)] max-w-sm sm:max-w-md px-4 sm:px-6">
         <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div
-              className={cn(
-                "flex size-10 shrink-0 items-center justify-center rounded-xl border",
-                emailFailed
-                  ? "border-[rgba(245,166,35,0.28)] bg-[rgba(245,166,35,0.10)]"
-                  : "border-[rgba(18,183,106,0.28)] bg-[rgba(18,183,106,0.10)]",
-              )}
-            >
-              {emailFailed ? (
-                <Warning
-                  weight="duotone"
-                  size={18}
-                  color="var(--accent-amber)"
-                />
-              ) : (
-                <CheckCircle
-                  weight="duotone"
-                  size={18}
-                  color="var(--state-success)"
-                />
-              )}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[rgba(18,183,106,0.28)] bg-[rgba(18,183,106,0.10)]">
+              <CheckCircle
+                weight="duotone"
+                size={18}
+                color="var(--state-success)"
+              />
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-col gap-1">
               <DialogTitle className="text-base text-(--text-primary)">
-                {emailFailed ? "Email delivery failed" : "Invite sent"}
+                Invite link generated
               </DialogTitle>
               <DialogDescription className="text-xs text-(--text-muted)">
-                {emailFailed
-                  ? "Share this link directly with the invitee."
-                  : "An email was sent. You can also share this link."}
+                Share this link with your teammate to invite them.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="flex items-center gap-2 rounded-xl border border-(--glass-border-subtle) bg-(--glass-bg) p-3">
+        <div className="flex flex-col gap-3 rounded-xl border border-(--glass-border-subtle) bg-(--glass-bg) p-3 sm:flex-row sm:items-center sm:gap-2">
           <LinkSimple
             weight="duotone"
             size={14}
             color="var(--text-muted)"
             className="shrink-0"
           />
-          <p className="min-w-0 flex-1 truncate font-mono text-sm text-(--text-primary)">
+          <p className="min-w-0 flex-1 break-all font-mono text-xs text-(--text-primary) sm:text-sm">
             {inviteUrl}
           </p>
           <Button
@@ -288,7 +266,7 @@ function InviteLinkModal({
             size="sm"
             variant="outline"
             className={cn(
-              "shrink-0 rounded-lg transition-colors",
+              "shrink-0 rounded-lg transition-colors w-full sm:w-auto",
               copied
                 ? "border-[rgba(18,183,106,0.36)] bg-[rgba(18,183,106,0.10)] text-(--state-success) hover:bg-[rgba(18,183,106,0.14)]"
                 : "bg-(--glass-bg)",
@@ -309,14 +287,47 @@ function InviteLinkModal({
           </Button>
         </div>
 
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-(--text-subtle)">Expires in 7 days.</p>
-          <Button type="button" className="rounded-lg" onClick={onClose}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-(--text-subtle) order-2 sm:order-1">
+            Expires in 7 days.
+          </p>
+          <Button 
+            type="button" 
+            className="rounded-lg order-1 sm:order-2 w-full sm:w-auto" 
+            onClick={onClose}
+          >
             Done
           </Button>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CopyLinkButton({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="shrink-0 h-6 px-2 text-xs"
+      onClick={handleCopy}
+    >
+      {copied ? (
+        <Check size={12} weight="bold" color="var(--state-success)" />
+      ) : (
+        <Copy size={12} weight="duotone" color="var(--text-muted)" />
+      )}
+    </Button>
   );
 }
 
@@ -327,13 +338,11 @@ export function MembersView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteRole>("MEMBER");
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviting, startInviting] = useTransition();
   const [inviteLink, setInviteLink] = useState<{
     url: string;
-    emailFailed: boolean;
   } | null>(null);
 
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -372,48 +381,26 @@ export function MembersView() {
       .finally(() => setLoading(false));
   }, [divisionId]);
 
-  function handleInviteSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const email = inviteEmail.trim();
-    if (!email || !divisionId) return;
+  function handleGenerateLink() {
+    if (!divisionId) return;
     setInviteError(null);
 
     startInviting(async () => {
       const result = await inviteMemberAction({
-        email,
+        email: `invite-${Date.now()}@placeholder.local`,
         role: inviteRole,
         divisionId,
       });
 
       if (!result.ok) {
-        if (result.error.code === "CONFLICT") {
-          setInviteError("This person is already a member of the division.");
-        } else {
-          setInviteError(
-            result.error.message ?? "Invite failed. Please try again.",
-          );
-        }
+        setInviteError(
+          result.error.message ?? "Failed to generate link. Please try again.",
+        );
         return;
       }
 
-      setInviteEmail("");
-      setInviteRole("MEMBER");
-
-      if (result.data?.status === "added") {
-        toast.success("Member added", { description: email });
-        const refreshed = (await fetch(
-          `/api/members?divisionId=${divisionId}`,
-        ).then((r) => r.json())) as {
-          data: { members: Member[]; pendingInvites: PendingInvite[] };
-        };
-        setMembers(refreshed.data.members);
-        setPendingInvites(refreshed.data.pendingInvites);
-      } else if (result.data?.status === "pending" && result.data.inviteUrl) {
-        toast.success("Invite sent", { description: email });
-        setInviteLink({
-          url: result.data.inviteUrl,
-          emailFailed: result.data.emailFailed ?? false,
-        });
+      if (result.data?.status === "pending" && result.data.inviteUrl) {
+        setInviteLink({ url: result.data.inviteUrl });
         const refreshed = (await fetch(
           `/api/members?divisionId=${divisionId}`,
         ).then((r) => r.json())) as {
@@ -496,41 +483,15 @@ export function MembersView() {
         <CardHeader>
           <CardTitle className="text-(--text-primary)">Invite member</CardTitle>
           <CardDescription className="text-(--text-muted)">
-            Admins can invite a new teammate by email and set the starting role.
+            Generate a share link and send it to your teammate to invite them to this division.
           </CardDescription>
           <CardAction>
             <Badge variant="secondary">Admin only</Badge>
           </CardAction>
         </CardHeader>
         <CardContent>
-          <form className="flex flex-col gap-4" onSubmit={handleInviteSubmit}>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.6fr_1fr_auto] md:items-end">
-              <div className="flex flex-col gap-2">
-                <label
-                  htmlFor="invite-email"
-                  className="text-xs font-medium text-(--text-muted)"
-                >
-                  Email address
-                </label>
-                <div className="relative">
-                  <EnvelopeSimple
-                    weight="duotone"
-                    size={14}
-                    color="var(--text-muted)"
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-                  />
-                  <GlassInput
-                    id="invite-email"
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    className="pl-9"
-                    required
-                  />
-                </div>
-              </div>
-
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
               <div className="flex flex-col gap-2">
                 <p className="text-xs font-medium text-(--text-muted)">Role</p>
                 <div className="flex items-center gap-2">
@@ -549,10 +510,11 @@ export function MembersView() {
               </div>
 
               <Button
-                type="submit"
+                type="button"
                 size="lg"
                 className="rounded-lg"
                 disabled={inviting}
+                onClick={handleGenerateLink}
               >
                 {inviting ? (
                   <Spinner
@@ -561,9 +523,9 @@ export function MembersView() {
                     className="animate-spin"
                   />
                 ) : (
-                  <Plus data-icon="inline-start" weight="duotone" />
+                  <LinkSimple data-icon="inline-start" weight="duotone" />
                 )}
-                Send invite
+                Generate invite link
               </Button>
             </div>
             {inviteError && (
@@ -572,7 +534,7 @@ export function MembersView() {
                 {inviteError}
               </p>
             )}
-          </form>
+          </div>
         </CardContent>
       </Card>
 
@@ -730,38 +692,47 @@ export function MembersView() {
                 key={inv.id}
                 className="glass rounded-xl border-(--glass-border-subtle) bg-(--glass-bg)"
               >
-                <CardContent className="flex items-center justify-between gap-4 py-4">
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <p className="truncate text-sm font-medium text-(--text-primary)">
-                      {inv.email}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={roleBadgeVariant(inv.role)}
-                        className="text-xs"
-                      >
-                        {roleLabel(inv.role)}
-                      </Badge>
-                      <span className="text-xs text-(--text-muted)">
-                        Expires {new Date(inv.expiresAt).toLocaleDateString()}
-                      </span>
+                <CardContent className="flex flex-col gap-3 py-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={roleBadgeVariant(inv.role)}
+                          className="text-xs"
+                        >
+                          {roleLabel(inv.role)}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs bg-[rgba(245,166,35,0.08)] text-(--accent-amber) border-[rgba(245,166,35,0.24)]">
+                          Pending accepted
+                        </Badge>
+                        <span className="text-xs text-(--text-muted)">
+                          Expires {new Date(inv.expiresAt).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 rounded-lg bg-(--glass-bg) text-red-400 hover:bg-[rgba(239,68,68,0.08)] hover:text-red-400"
+                      onClick={() => handleRevokeInvite(inv.id)}
+                      disabled={revokingId === inv.id}
+                    >
+                      {revokingId === inv.id ? (
+                        <Spinner size={13} className="animate-spin" />
+                      ) : (
+                        <X size={13} weight="bold" />
+                      )}
+                      Revoke
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 rounded-lg bg-(--glass-bg) text-red-400 hover:bg-[rgba(239,68,68,0.08)] hover:text-red-400"
-                    onClick={() => handleRevokeInvite(inv.id)}
-                    disabled={revokingId === inv.id}
-                  >
-                    {revokingId === inv.id ? (
-                      <Spinner size={13} className="animate-spin" />
-                    ) : (
-                      <X size={13} weight="bold" />
-                    )}
-                    Revoke
-                  </Button>
+                  <div className="flex items-center gap-2 rounded-lg border border-(--glass-border-subtle) bg-(--glass-bg) px-3 py-2">
+                    <LinkSimple size={12} weight="duotone" color="var(--text-muted)" className="shrink-0" />
+                    <p className="min-w-0 flex-1 break-all font-mono text-xs text-(--text-muted)">
+                      {inv.inviteUrl}
+                    </p>
+                    <CopyLinkButton url={inv.inviteUrl} />
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -772,8 +743,9 @@ export function MembersView() {
       {inviteLink && (
         <InviteLinkModal
           inviteUrl={inviteLink.url}
-          emailFailed={inviteLink.emailFailed}
-          onClose={() => setInviteLink(null)}
+          onClose={() => {
+            setInviteLink(null);
+          }}
         />
       )}
     </div>

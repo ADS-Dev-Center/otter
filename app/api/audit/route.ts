@@ -136,7 +136,7 @@ export async function GET(req: Request) {
       return info;
     } catch {
       const fallback: ActorInfo = {
-        name: dbUser?.email || actorId,
+        name: dbUser?.email || "Unknown User",
         email: dbUser?.email ?? "",
         imageUrl: "",
       };

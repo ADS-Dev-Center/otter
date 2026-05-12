@@ -113,7 +113,7 @@ export async function getDashboardData(userId: string) {
       action: log.action,
       resourceName: log.resourceName,
       divisionName: log.division?.name ?? null,
-      actorName: actor?.name ?? log.actorId,
+      actorName: actor?.name || actor?.email || "Unknown User",
       actorImageUrl: actor?.imageUrl ?? null,
       timestamp: log.timestamp,
     };
@@ -124,7 +124,7 @@ export async function getDashboardData(userId: string) {
     return {
       id: membership.id,
       clerkId: membership.clerkId,
-      name: dbUser?.name ?? membership.clerkId,
+      name: dbUser?.name || dbUser?.email || "Unknown User",
       email: dbUser?.email ?? "",
       imageUrl: dbUser?.imageUrl ?? null,
       role: membership.role,

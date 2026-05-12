@@ -12,6 +12,7 @@ import {
   removeMember,
   revokeInvitation,
   updateMemberRole,
+  acceptInvitation,
 } from "@/lib/services/member.service";
 import { actionFailure, actionSuccess, type ActionResult } from "./types";
 
@@ -113,5 +114,25 @@ export async function revokeInvitationAction(input: {
     }
     console.error("[revokeInvitationAction]", error);
     return actionFailure("INTERNAL_ERROR", "Failed to revoke invitation");
+  }
+}
+
+export async function acceptInvitationAction(input: {
+  token: string;
+}): Promise<ActionResult<{ divisionId: string }>> {
+  const { userId } = await auth();
+  if (!userId) return actionFailure("UNAUTHORIZED", "Unauthorized");
+
+  try {
+    const data = await acceptInvitation(userId, input.token);
+    revalidatePath("/members");
+    revalidatePath("/dashboard");
+    return actionSuccess(data);
+  } catch (error) {
+    if (isDomainError(error)) {
+      return actionFailure(error.code, error.message);
+    }
+    console.error("[acceptInvitationAction]", error);
+    return actionFailure("INTERNAL_ERROR", "Failed to accept invitation");
   }
 }

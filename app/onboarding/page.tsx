@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,7 +39,7 @@ type InviteRole = "DIVISION_ADMIN" | "MEMBER";
 type SentInvite = {
   email: string;
   role: InviteRole;
-  status: "pending" | "added";
+  status: "pending";
 };
 
 const ROLE_OPTIONS: {
@@ -61,8 +61,18 @@ const STEPS = [
 ];
 
 export default function OnboardingPage() {
+  return (
+    <Suspense>
+      <OnboardingContent />
+    </Suspense>
+  );
+}
+
+function OnboardingContent() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect_url");
 
   const [step, setStep] = useState(1);
   const [divisionId, setDivisionId] = useState<string | null>(null);
@@ -152,7 +162,7 @@ export default function OnboardingPage() {
         {
           email,
           role: inviteRole,
-          status: result.data?.status === "added" ? "added" : "pending",
+          status: "pending" as const,
         },
       ]);
       setInviteEmail("");
@@ -165,7 +175,7 @@ export default function OnboardingPage() {
   }
 
   function handleFinish() {
-    router.push("/");
+    router.push(redirectUrl || "/");
   }
 
   return (

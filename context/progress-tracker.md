@@ -5,13 +5,50 @@ change.
 
 ## Current Phase
 
-- Server Component refactor complete: all page.tsx files now follow the server component pattern with client logic extracted to dedicated view components
+- Feature 21 (Invite Member Logic) complete: share-link-only invite flow with accept invitation page
 
 ## Current Goal
 
 - Define and implement the next feature scope
 
 ## Completed
+
+- **[Feature 21]** Invite Member Logic — share-link-only flow:
+  - Removed `resend` dependency from `package.json` and all email-sending logic from `lib/services/member.service.ts`
+  - Deleted `lib/emails/invite.ts` (email template no longer needed)
+  - Simplified `inviteMember` service: no longer looks up Clerk users or adds directly — always creates an invitation record and returns a share link
+  - Made `email` field optional in `lib/validations/member.ts` `inviteMemberSchema` (share-link flow doesn't require email)
+  - Rewrote `app/accept-invite/page.tsx`:
+    - Shows invitation info (division name, role) with "Pending accepted" status before user accepts
+    - Unauthenticated users see sign-up/sign-in buttons with redirect back to accept page
+    - Authenticated users without divisions get redirected to onboarding with `redirect_url` back to accept page
+    - Authenticated users with divisions see an "Accept & join division" button
+  - Created `components/invite/AcceptInviteButton.tsx` — client component with accept action and loading state
+  - Added `acceptInvitationAction` server action in `app/actions/members.ts`
+  - Updated `proxy.ts` — added `/accept-invite(.*)` to public routes so unauthenticated users can view invitation info
+  - Updated `app/onboarding/page.tsx`:
+    - Reads `redirect_url` from search params via `useSearchParams()`
+    - After onboarding completes, redirects to `redirect_url` (accept-invite page) instead of `/`
+    - Wrapped in `Suspense` boundary for `useSearchParams()` compatibility
+  - Updated `components/members/MembersView.tsx`:
+    - Replaced email-based invite form with "Generate invite link" button (share-link-only)
+    - Pending invites now show "Pending accepted" badge and the invite URL with copy button
+    - Removed `GlassInput`, `EnvelopeSimple`, `Plus`, `Warning` imports (no longer needed)
+  - `npm run build` passes with no type errors
+
+- **[BUGFIX]** Fixed actor name display in activity log and audit log showing raw Clerk user ID instead of name/email:
+  - `lib/services/dashboard.service.ts`: fallback chain for `actorName` and member `name` now uses `name || email || "Unknown User"` instead of raw `clerkId`
+  - `app/api/audit/route.ts`: last-resort fallback changed from `actorId` to `"Unknown User"` in `resolveActor`
+  - `lib/services/audit.service.ts`: Clerk name resolution now falls back to `primaryEmailAddress` before `"Unknown User"`
+
+- **[BUGFIX]** Fixed responsive issues in invite modal dialog:
+  - Modal now properly constrains to 100% width with 1rem margin on mobile (`w-[calc(100%-2rem)] max-w-sm`)
+  - Updated header layout to flex column on mobile, flex row on sm+ (`flex-col sm:flex-row`)
+  - Fixed URL text wrapping from `truncate` to `break-all` for proper line breaking on all screen sizes
+  - Changed URL container from horizontal to flex column on mobile with full-width copy button (`flex-col sm:flex-row`)
+  - Updated footer to stack vertically on mobile with proper button sizing (`flex-col sm:flex-row` with `order-1/2` for visual order)
+  - Added responsive padding and text sizes (text-xs on mobile, text-sm on sm+)
+  - Content no longer overflows from card on any screen size
 
 - Completed Feature 19 Phase 2 (Server Actions + service-enforced server pages):
   - Added shared action result utilities in `app/actions/types.ts`
